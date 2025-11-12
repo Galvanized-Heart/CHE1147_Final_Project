@@ -10,7 +10,13 @@ A short description of the project.
 ## Installation
 
 ```bash
-# Full intial install
+# Install astral uv package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+```
+
+```bash
+# Full intial install environment
 make setup
 ```
 
