@@ -12,20 +12,17 @@ from config import DATA_DOWNLOAD_URL, RAW_DATA_DIR, RAW_DATA_PATH, INTERIM_DATA_
 from parse import parse_pH, parse_temperature
 
 
-def download_and_clean_data() -> None:
-    if os.path.exists(INTERIM_DATA_PATH):
-        logger.info(f"Interim data already exists at {INTERIM_DATA_PATH}. Skipping download and cleaning.")
-        return
+def download_data() -> None:
+    os.makedirs(RAW_DATA_DIR, exist_ok=True)
+    logger.info(f"Downloading raw data from {DATA_DOWNLOAD_URL} to {RAW_DATA_PATH}")
+    with requests.get(DATA_DOWNLOAD_URL, stream=True) as r:
+        r.raise_for_status() 
+        with open(RAW_DATA_PATH, 'wb') as f:
+            shutil.copyfileobj(r.raw, f)
+            logger.info(f"Download complete. Data saved to {RAW_DATA_PATH}")
 
-    if not os.path.exists(RAW_DATA_PATH):
-        os.makedirs(RAW_DATA_DIR, exist_ok=True)
-        logger.info(f"Downloading raw data from {DATA_DOWNLOAD_URL} to {RAW_DATA_PATH}")
-        with requests.get(DATA_DOWNLOAD_URL, stream=True) as r:
-            r.raise_for_status() 
-            with open(RAW_DATA_PATH, 'wb') as f:
-                shutil.copyfileobj(r.raw, f)
-                logger.info(f"Download complete. Data saved to {RAW_DATA_PATH}")
-    
+
+def clean_data() -> pd.DataFrame:
     logger.info(f"Loading raw data from {RAW_DATA_PATH}")
     df = pd.read_parquet(RAW_DATA_PATH)
 
@@ -67,7 +64,29 @@ def download_and_clean_data() -> None:
     logger.info(f"Cleaned data has the following columns: {df.columns.tolist()}")
     logger.info(f"Cleaned data has {df.shape[0]} rows")
 
-    os.makedirs(INTERIM_DATA_DIR, exist_ok=True)
-    logger.info(f"Saving cleaned interim data to {INTERIM_DATA_PATH}")
-    df.to_parquet(INTERIM_DATA_PATH, index=False)
+    return df
+
+
+def download_and_clean_data() -> None:
+    if not os.path.exists(RAW_DATA_PATH):
+        logger.info(f"Raw data does NOT exists at {RAW_DATA_PATH}.")
+        download_data()
+    else:
+        logger.info(f"Raw data already exists at {RAW_DATA_PATH}. Skipping download.")
+    
+    if not os.path.exists(INTERIM_DATA_PATH):
+        logger.info(f"Cleaned data does not exist at {INTERIM_DATA_PATH}.")
+        df = clean_data()
+        logger.info(f"Saving cleaned interim data to {INTERIM_DATA_PATH}")
+        os.makedirs(INTERIM_DATA_DIR, exist_ok=True)
+        df.to_parquet(INTERIM_DATA_PATH, index=False)
+    else: 
+        logger.info(f"Cleaned interim data already exists at {INTERIM_DATA_PATH}. Skipping cleaning.")
+        logger.info(f"Loading cleaned interim data from {INTERIM_DATA_PATH}.")
+        df = pd.read_parquet(INTERIM_DATA_PATH)
+
+    logger.info(f"Cleaned data has the following columns: {df.columns.tolist()}")
+    logger.info(f"Cleaned data has {df.shape[0]} rows")
+
+    return df
 
