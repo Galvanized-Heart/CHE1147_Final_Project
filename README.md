@@ -1,21 +1,22 @@
 # CHE1147 Final Project - Group 1
 
-## Installation
-
-```bash
-# Creates virtual environment
-uv venv .venv
-
-# Syncs .venv to pyproject.toml
-uv sync
-```
-
 
 <a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
 </a>
 
 A short description of the project.
+
+## Installation
+
+```bash
+# Creates virtual environment
+make create_environment
+
+# Syncs .venv to pyproject.toml
+make requirements
+```
+
 
 ## Project Organization
 

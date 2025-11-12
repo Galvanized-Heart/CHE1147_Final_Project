@@ -4,7 +4,7 @@
 
 PROJECT_NAME = CHE1147_Final_Project
 PYTHON_VERSION = 3.10
-PYTHON_INTERPRETER = python
+PYTHON_INTERPRETER = uv run
 
 #################################################################################
 # COMMANDS                                                                      #
