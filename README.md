@@ -10,11 +10,8 @@ A short description of the project.
 ## Installation
 
 ```bash
-# Creates virtual environment
-make create_environment
-
-# Syncs .venv to pyproject.toml
-make requirements
+# Full intial install
+make setup
 ```
 
 
