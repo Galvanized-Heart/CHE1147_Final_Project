@@ -3,7 +3,7 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "project_name"
+name = "src"
 version = "0.0.1"
 description = "A short description of the project."
 authors = [
@@ -16,25 +16,37 @@ classifiers = [
     
 ]
 dependencies = [
+    "biopython>=1.86",
+    "joblib>=1.5.2",
     "loguru",
+    "matplotlib>=3.10.7",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
     "pip",
+    "pyarrow>=22.0.0",
     "python-dotenv",
+    "rdkit>=2025.9.1",
     "ruff",
+    "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+    "torch>=2.9.1",
     "tqdm",
+    "transformers>=4.57.1",
     "typer",
+    "xgboost>=3.1.1",
 ]
 requires-python = "~=3.10.0"
 
 
 [tool.ruff]
 line-length = 99
-src = ["project_name"]
-include = ["pyproject.toml", "project_name/**/*.py"]
+src = ["src"]
+include = ["pyproject.toml", "src/**/*.py"]
 
 [tool.ruff.lint]
 extend-select = ["I"]  # Add import sorting
 
 [tool.ruff.lint.isort]
-known-first-party = ["project_name"]
+known-first-party = ["src"]
 force-sort-within-sections = true
 
