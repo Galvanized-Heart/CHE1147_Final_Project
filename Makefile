@@ -10,8 +10,12 @@ PYTHON_INTERPRETER = uv run
 # COMMANDS                                                                      #
 #################################################################################
 
+## Full initial setup
+.PHONY: setup
+setup: create_environment requirements
 
-## Install Python dependencies
+
+## Sync Python dependencies
 .PHONY: requirements
 requirements:
 	uv sync

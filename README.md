@@ -10,11 +10,14 @@ A short description of the project.
 ## Installation
 
 ```bash
-# Creates virtual environment
-make create_environment
+# Install astral uv package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+```
 
-# Syncs .venv to pyproject.toml
-make requirements
+```bash
+# Full intial install environment
+make setup
 ```
 
 
