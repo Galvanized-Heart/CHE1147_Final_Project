@@ -10,11 +10,21 @@ load_dotenv()
 PROJ_ROOT = Path(__file__).resolve().parents[1]
 logger.info(f"PROJ_ROOT path is: {PROJ_ROOT}")
 
+DATA_DOWNLOAD_URL = "https://github.com/ChemBioHTP/EnzyExtract/raw/main/EnzyExtractDB/EnzyExtractDB_176463.parquet"
 DATA_DIR = PROJ_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
+RAW_DATA_PATH = RAW_DATA_DIR / "EnzyExtractDB_176463.parquet"
 INTERIM_DATA_DIR = DATA_DIR / "interim"
+INTERIM_DATA_PATH = INTERIM_DATA_DIR / "cleaned_data.parquet"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
+
+TEMP_LO = -10.0  # Minimum temperature in °C
+TEMP_HI = 100.0  # Maximum temperature in °C
+TEMP_MAX_UNCERTAINTY = 10.0  # Maximum allowed uncertainty in for temperature °C
+PH_LO = 0.0  # Minimum pH
+PH_HI = 14.0  # Maximum pH
+PH_MAX_UNCERTAINTY = 2.0  # Maximum allowed uncertainty for pH
 
 MODELS_DIR = PROJ_ROOT / "models"
 
