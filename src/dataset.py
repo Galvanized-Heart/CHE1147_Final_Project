@@ -31,6 +31,16 @@ def clean_data() -> pd.DataFrame:
     relevant_cols = ["sequence", "smiles", "temperature", "pH", "kcat_value", "km_value"]
     df = df[relevant_cols].copy()
 
+    # Drop rows with special characters in sequence
+    rows_to_drop_mask = df['sequence'].str.contains(r'\(.*\)', na=False)
+    df = df[~rows_to_drop_mask]
+
+    # Drop rows where kcat is less than or equal to 0
+    df = df[df['kcat_value'] > 0]
+
+    # Drop rows where km is less than or equal to 0
+    df = df[df['km_value'] > 0]
+
     # Parse pH and temperature columns
     ph_col_names = ["pH_value", "pH_uncertainty"]
     df[ph_col_names] = df['pH'].apply(parse_pH).apply(pd.Series)
@@ -51,12 +61,6 @@ def clean_data() -> pd.DataFrame:
 
     # Drop uncertainty columns since we no longer need them
     df = df.drop(columns=["temperature_uncertainty", "pH_uncertainty"])
-
-    # Drop rows where kcat is less than or equal to 0
-    df = df[df['kcat_value'] > 0]
-
-    # Drop rows where km is less than or equal to 0
-    df = df[df['km_value'] > 0]
 
     # Reset index after filtering
     df = df.reset_index(drop=True)
