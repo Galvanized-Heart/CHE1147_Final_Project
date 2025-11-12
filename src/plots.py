@@ -14,6 +14,7 @@ sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
 
 app = typer.Typer()
 
+
 def generate_parity_plot(
     y_true: pd.Series,
     y_pred: pd.Series,
