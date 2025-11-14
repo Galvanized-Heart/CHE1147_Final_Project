@@ -18,6 +18,7 @@ INTERIM_DATA_DIR = DATA_DIR / "interim"
 INTERIM_DATA_PATH = INTERIM_DATA_DIR / "cleaned_data.parquet"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / "processed_data.parquet"
+SPLITS_DIR = PROCESSED_DATA_DIR / 'splits'
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
 
 TEMP_LO = -10.0  # Minimum temperature in °C
@@ -28,8 +29,11 @@ PH_HI = 14.0  # Maximum pH
 PH_MAX_UNCERTAINTY = 2.0  # Maximum allowed uncertainty for pH
 
 TEST_PERCENTAGE = 0.8  # Percentage of data to use for training
+HPO_TEST_PERCENTAGE = 0.25 # Percentage of training data to reserve for validation set during hyperparam tuning
 SPLIT_RANDOM_STATE = 7  # Random state for train-test split. 7 is the best number.
 NUM_CROSSVAL_FOLDS = 5  # Number of folds for cross-validation
+
+METRICS_DICT = {'train_mse': [], 'test_mse': [], 'train_mae': [], 'test_mae': [], 'train_r2': [], 'test_r2': []}
 
 # XGBoost hyperparameters
 XGB_RANDOM_STATE = 14
