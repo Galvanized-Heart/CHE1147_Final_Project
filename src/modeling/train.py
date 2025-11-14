@@ -1,4 +1,5 @@
 from pathlib import Path
+import copy
 import typer
 from loguru import logger
 import numpy as np
@@ -8,26 +9,26 @@ from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.linear_model import LinearRegression
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score # Consider pearson or ther correl metrics
 from xgboost import XGBRegressor
 from scipy.stats import uniform, randint
 
-from src.config import MODELS_DIR, PROCESSED_DATA_PATH, TEST_PERCENTAGE, SPLIT_RANDOM_STATE, NUM_CROSSVAL_FOLDS, \
+from src.config import MODELS_DIR, PROCESSED_DATA_PATH, TEST_PERCENTAGE, SPLIT_RANDOM_STATE, NUM_CROSSVAL_FOLDS, METRICS_DICT, \
     XGB_RANDOM_STATE, XGB_N_ESTIMATORS, XGB_MAX_DEPTH, XGB_LEARNING_RATE, \
     NN_RANDOM_STATE, NN_HIDDEN_LAYER_SIZES, NN_ACTIVATION, NN_SOLVER, NN_LEARNING_RATE_INIT, NN_MAX_ITER, NN_EARLY_STOPPING, NN_N_ITER_NO_CHANGE
 
 
-def train_and_eval(model, model_metric_dict, X_train, y_train, X_test, y_test):
+def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
     model.fit(X_train, y_train)
     y_train_pred = model.predict(X_train)
-    y_test_pred = model.predict(X_test)
+    y_val_pred = model.predict(X_val)
 
     train_mse = mean_squared_error(y_train, y_train_pred)
-    test_mse = mean_squared_error(y_test, y_test_pred)
+    test_mse = mean_squared_error(y_val, y_val_pred)
     train_mae = mean_absolute_error(y_train, y_train_pred)
-    test_mae = mean_absolute_error(y_test, y_test_pred)
+    test_mae = mean_absolute_error(y_val, y_val_pred)
     train_r2 = r2_score(y_train, y_train_pred)
-    test_r2 = r2_score(y_test, y_test_pred)
+    test_r2 = r2_score(y_val, y_val_pred)
 
     model_metric_dict['train_mse'].append(train_mse)
     model_metric_dict['test_mse'].append(test_mse)
@@ -41,67 +42,93 @@ def compute_mean_var(metrics_dict):
     return {key: {'mean': np.mean(values), 'var': np.var(values)} for key, values in metrics_dict.items()}
 
 
-def single_experiment(X, y):
-    linear_metrics = {'train_mse': [], 'test_mse': [], 'train_mae': [], 'test_mae': [], 'train_r2': [], 'test_r2': []}
-    xgb_metrics    = {'train_mse': [], 'test_mse': [], 'train_mae': [], 'test_mae': [], 'train_r2': [], 'test_r2': []}
-    nn_metrics     = {'train_mse': [], 'test_mse': [], 'train_mae': [], 'test_mae': [], 'train_r2': [], 'test_r2': []}
-
-    for crossval_fold in range(NUM_CROSSVAL_FOLDS):
-        fold_seed = SPLIT_RANDOM_STATE + crossval_fold
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_PERCENTAGE, random_state=fold_seed)
-
-        # Linear model (baseline)
-        linear_model = LinearRegression()
-        train_and_eval(linear_model, linear_metrics, X_train, y_train, X_test, y_test)
-
-        # XGBoost model
-        xgb_model = MultiOutputRegressor(
-            XGBRegressor(
-                n_estimators=XGB_N_ESTIMATORS,
-                max_depth=XGB_MAX_DEPTH,
-                learning_rate=XGB_LEARNING_RATE,
-                random_state=XGB_RANDOM_STATE + crossval_fold,
-                verbosity=0
-            )
-        )
-        train_and_eval(xgb_model, xgb_metrics, X_train, y_train, X_test, y_test)
-
-        # NN Model
-        nn_model = MLPRegressor(
-            hidden_layer_sizes=NN_HIDDEN_LAYER_SIZES,
-            activation=NN_ACTIVATION,
-            solver=NN_SOLVER,
-            learning_rate_init=NN_LEARNING_RATE_INIT,
-            max_iter=NN_MAX_ITER, # Max number of epochs
-            random_state=NN_RANDOM_STATE + crossval_fold,
-            early_stopping=NN_EARLY_STOPPING,
-            n_iter_no_change=NN_N_ITER_NO_CHANGE,
-            verbose=False
-        )
-        train_and_eval(nn_model, nn_metrics, X_train, y_train, X_test, y_test)
+def single_experiment(X_train, y_train, X_val, y_val):
+    linear_metrics = {'train_mse': [], 'val_mse': [], 'train_mae': [], 'val_mae': [], 'train_r2': [], 'val_r2': []}
+    xgb_metrics    = copy.deepcopy(linear_metrics)
+    nn_metrics     = copy.deepcopy(linear_metrics)
     
-    # Compute mean and variance
-    linear_summary = compute_mean_var(linear_metrics)
-    xgb_summary = compute_mean_var(xgb_metrics)
-    nn_summary = compute_mean_var(nn_metrics)
+    # Linear model
+    linear_model = LinearRegression()
+    train_and_eval(linear_model, linear_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
 
-    # Convert to DataFrame
-    all_summaries = {
-        'Linear Regression': linear_summary,
-        'XGBoost': xgb_summary,
-        'Neural Network': nn_summary
-    }
+    # XGBoost model
+    xgb_model = MultiOutputRegressor(
+        XGBRegressor(
+            n_estimators=XGB_N_ESTIMATORS,
+            max_depth=XGB_MAX_DEPTH,
+            learning_rate=XGB_LEARNING_RATE,
+            random_state=XGB_RANDOM_STATE,
+            verbosity=0
+        )
+    )
+    train_and_eval(xgb_model, xgb_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
 
-    rows = []
-    for model_name, metrics in all_summaries.items():
-        row = {'model': model_name}
-        for metric_name, stat in metrics.items():
-            row[f"{metric_name}_mean"] = stat['mean']
-            row[f"{metric_name}_var"] = stat['var']
-        rows.append(row)
+    # NN Model
+    nn_model = MLPRegressor(
+        hidden_layer_sizes=NN_HIDDEN_LAYER_SIZES,
+        activation=NN_ACTIVATION,
+        solver=NN_SOLVER,
+        learning_rate_init=NN_LEARNING_RATE_INIT,
+        max_iter=NN_MAX_ITER,
+        random_state=NN_RANDOM_STATE,
+        early_stopping=NN_EARLY_STOPPING,
+        n_iter_no_change=NN_N_ITER_NO_CHANGE,
+        verbose=False
+    )
+    train_and_eval(nn_model, nn_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
 
-    df = pd.DataFrame(rows)
-    return df
+    results = [
+        {'model': 'Linear Regression', **linear_metrics},
+        {'model': 'XGBoost', **xgb_metrics},
+        {'model': 'Neural Network', **nn_metrics},
+    ]
+    
+    # The metrics dicts have lists with one item, so we extract it
+    for result in results:
+        for key, val in result.items():
+            if isinstance(val, list):
+                result[key] = val[0]
+
+    return pd.DataFrame(results)
+
+def run_kfold_validation(splits_dict: dict):
+    logger.info("Starting K-Fold Cross-Validation")
+    all_fold_results = []
+    
+    # Loop through each fold defined in the splits dictionary
+    for fold_name, paths in splits_dict['folds'].items():
+        logger.info(f"Running validation for {fold_name}...")
+        
+        # Unpack paths for this fold
+        X_train_path, y_train_path = paths['train']
+        X_val_path, y_val_path = paths['val']
+        
+        # Load data from parquet files
+        X_train = pd.read_parquet(X_train_path)
+        y_train = pd.read_parquet(y_train_path)
+        X_val = pd.read_parquet(X_val_path)
+        y_val = pd.read_parquet(y_val_path)
+        
+        # Run all models on this specific fold
+        fold_results_df = single_experiment(X_train, y_train, X_val, y_val)
+        fold_results_df['fold'] = fold_name
+        all_fold_results.append(fold_results_df)
+
+    # Combine results from all folds into a single DataFrame
+    final_results_df = pd.concat(all_fold_results, ignore_index=True)
+    
+    logger.info("K-Fold Cross-Validation Complete")
+    print("\nFull Results Across All Folds:")
+    print(final_results_df.round(4))
+
+    # Calculate and display the mean and standard deviation of metrics across folds
+    summary = final_results_df.drop(columns=['fold']).groupby('model').agg(['mean', 'std'])
+    
+    logger.success("Final Performance Summary (Mean +/- Std Dev)")
+    print("\nAggregated Performance:")
+    print(summary['val_r2'].round(4))
+    
+    return summary
 
 
 def train():
