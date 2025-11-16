@@ -70,7 +70,8 @@ def create_splits(processed_data_path: Path, k: int = NUM_CROSSVAL_FOLDS, random
         return {}
     X = df.drop(columns=['kcat_value', 'km_value', 'log_kcat_value', 'log_km_value', 'temperature', 'pH', 'pH_value', 
                          'temperature_value', 'mol_wt', 'log_p', 'tpsa', 'num_h_donors', 'num_h_acceptors', 
-                         'num_rot_bonds', 'seq_length', 'seq_mol_wt', 'pI', 'aromaticity', 'instability_index'])
+                         'num_rot_bonds', 'seq_length', 'seq_mol_wt', 'pI', 'aromaticity', 'instability_index',
+                         'sequence', 'smiles'])
     y = df[['log_kcat_value', 'log_km_value']]
 
     # Create split dir
@@ -91,10 +92,10 @@ def create_splits(processed_data_path: Path, k: int = NUM_CROSSVAL_FOLDS, random
         y_train, y_val = y.iloc[train_index], y.iloc[val_index]
 
         # Save the dataframes
-        X_train.to_parquet(fold_paths['X_train'])
-        y_train.to_parquet(fold_paths['y_train'])
-        X_val.to_parquet(fold_paths['X_val'])
-        y_val.to_parquet(fold_paths['y_val'])
+        X_train.to_parquet(fold_paths['train'][0])
+        y_train.to_parquet(fold_paths['train'][1])
+        X_val.to_parquet(fold_paths['val'][0])
+        y_val.to_parquet(fold_paths['val'][1])
 
         # Special case for HPO split
         if fold_idx == 1:

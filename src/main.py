@@ -33,5 +33,8 @@ def main() -> None:
     best_hyperparameters = run_hpo(splits_path_dict)
     kfold_summary = run_kfold_validation(splits_path_dict, best_hyperparameters)
 
+    print("\nFinal Model Performance (Mean over K-Folds):")
+    print(kfold_summary['val_r2'].round(4))
+
 if __name__ == "__main__":
     main()

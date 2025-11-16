@@ -66,7 +66,7 @@ def run_hpo(splits_dict: dict) -> dict:
             n_iter=HPO_ROUNDS,
             cv=ps,
             scoring='r2',
-            n_jobs=-1,
+            n_jobs=1,
             random_state=SPLIT_RANDOM_STATE,
             verbose=1
         )

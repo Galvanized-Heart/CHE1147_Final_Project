@@ -43,7 +43,10 @@ def compute_mean_var(metrics_dict):
 
 
 
-def single_experiment(X_train, y_train, X_val, y_val):
+def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None):
+    if model_params is None:
+        model_params = {}
+
     linear_metrics = {'train_mse': [], 'val_mse': [], 'train_mae': [], 'val_mae': [], 'train_r2': [], 'val_r2': []}
     xgb_metrics    = copy.deepcopy(linear_metrics)
     nn_metrics     = copy.deepcopy(linear_metrics)
@@ -53,29 +56,33 @@ def single_experiment(X_train, y_train, X_val, y_val):
     train_and_eval(linear_model, linear_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
 
     # XGBoost model
-    xgb_model = MultiOutputRegressor(
-        XGBRegressor(
-            n_estimators=XGB_N_ESTIMATORS,
-            max_depth=XGB_MAX_DEPTH,
-            learning_rate=XGB_LEARNING_RATE,
-            random_state=XGB_RANDOM_STATE,
-            verbosity=0
-        )
-    )
+    xgb_params = model_params.get('XGBoost', {})
+    final_xgb_params = {
+        'n_estimators': XGB_N_ESTIMATORS,
+        'max_depth': XGB_MAX_DEPTH,
+        'learning_rate': XGB_LEARNING_RATE,
+        'random_state': XGB_RANDOM_STATE,
+        'verbosity': 0,
+        **xgb_params # Overwrite defaults
+    }
+    xgb_model = MultiOutputRegressor(XGBRegressor(**final_xgb_params))
     train_and_eval(xgb_model, xgb_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
 
     # NN Model
-    nn_model = MLPRegressor(
-        hidden_layer_sizes=NN_HIDDEN_LAYER_SIZES,
-        activation=NN_ACTIVATION,
-        solver=NN_SOLVER,
-        learning_rate_init=NN_LEARNING_RATE_INIT,
-        max_iter=NN_MAX_ITER,
-        random_state=NN_RANDOM_STATE,
-        early_stopping=NN_EARLY_STOPPING,
-        n_iter_no_change=NN_N_ITER_NO_CHANGE,
-        verbose=False
-    )
+    nn_params = model_params.get('Neural Network', {})
+    final_nn_params = {
+        'hidden_layer_sizes': NN_HIDDEN_LAYER_SIZES,
+        'activation': NN_ACTIVATION,
+        'solver': NN_SOLVER,
+        'learning_rate_init': NN_LEARNING_RATE_INIT,
+        'max_iter': NN_MAX_ITER,
+        'random_state': NN_RANDOM_STATE,
+        'early_stopping': NN_EARLY_STOPPING,
+        'n_iter_no_change': NN_N_ITER_NO_CHANGE,
+        'verbose': 0,
+        **nn_params # Overwrite defaults
+    }
+    nn_model = MLPRegressor(**final_nn_params)
     train_and_eval(nn_model, nn_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
 
     results = [
@@ -94,7 +101,7 @@ def single_experiment(X_train, y_train, X_val, y_val):
 
 
 
-def run_kfold_validation(splits_dict: dict):
+def run_kfold_validation(splits_dict: dict, best_params: dict):
     logger.info("Starting K-Fold Cross-Validation")
     all_fold_results = []
     
@@ -113,7 +120,7 @@ def run_kfold_validation(splits_dict: dict):
         y_val = pd.read_parquet(y_val_path)
         
         # Run all models on this specific fold
-        fold_results_df = single_experiment(X_train, y_train, X_val, y_val)
+        fold_results_df = single_experiment(X_train, y_train, X_val, y_val, model_params=best_params)
         fold_results_df['fold'] = fold_name
         all_fold_results.append(fold_results_df)
 
