@@ -1,9 +1,10 @@
+from typing import Tuple
 import re
 
 import pandas as pd
 
 
-def parse_pH(input_string, verbose=False):
+def parse_pH(input_string: str, verbose: bool = False) -> Tuple[float, float]:
 	"""
 	Parses a string to find a pH value and its uncertainty.
 	Returns (value, uncertainty) or (None, None).
@@ -76,7 +77,7 @@ def parse_pH(input_string, verbose=False):
 		return (None, None)
 
 
-def parse_temperature(temp_str, verbose=False):
+def parse_temperature(temp_str: str, verbose: bool = False) -> Tuple[float, float]:
     """
     Returns (Value, Uncertainty)
     """

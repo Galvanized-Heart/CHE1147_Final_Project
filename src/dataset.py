@@ -62,8 +62,11 @@ def clean_data() -> pd.DataFrame:
     # Drop uncertainty columns since we no longer need them
     df = df.drop(columns=["temperature_uncertainty", "pH_uncertainty"])
 
+    # Drop rows with any remaining NaNs
+    df = df.dropna()
+
     # Reset index after filtering
-    df = df.reset_index(drop=True)
+    df = df.reset_index(drop=True, inplace=True)
 
     logger.info(f"Cleaned data has the following columns: {df.columns.tolist()}")
     logger.info(f"Cleaned data has {df.shape[0]} rows")
@@ -91,6 +94,4 @@ def download_and_clean_data() -> None:
 
     logger.info(f"Cleaned data has the following columns: {df.columns.tolist()}")
     logger.info(f"Cleaned data has {df.shape[0]} rows")
-
-    return df
 

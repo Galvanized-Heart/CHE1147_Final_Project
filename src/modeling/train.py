@@ -1,75 +1,164 @@
 from pathlib import Path
+import copy
 import typer
 from loguru import logger
+import numpy as np
 import pandas as pd
 import joblib
-import xgboost as xgb
-from sklearn.dummy import DummyRegressor
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.linear_model import LinearRegression
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score # Consider pearson or ther correl metrics
+from xgboost import XGBRegressor
 from scipy.stats import uniform, randint
 
-from src.config import MODELS_DIR, PROCESSED_DATA_DIR
+from src.config import *
 
-app = typer.Typer()
 
-@app.command()
-def main(
-    processed_data_dir: Path = typer.Option(PROCESSED_DATA_DIR, help="Path to processed data directory."),
-    models_output_dir: Path = typer.Option(MODELS_DIR, help="Directory to save trained models."),
-):
+
+def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
+    model.fit(X_train, y_train)
+    y_train_pred = model.predict(X_train)
+    y_val_pred = model.predict(X_val)
+
+    train_mse = mean_squared_error(y_train, y_train_pred)
+    val_mse = mean_squared_error(y_val, y_val_pred)
+    train_mae = mean_absolute_error(y_train, y_train_pred)
+    val_mae = mean_absolute_error(y_val, y_val_pred)
+    train_r2 = r2_score(y_train, y_train_pred)
+    val_r2 = r2_score(y_val, y_val_pred)
+
+    model_metric_dict['train_mse'].append(train_mse)
+    model_metric_dict['val_mse'].append(val_mse)
+    model_metric_dict['train_mae'].append(train_mae)
+    model_metric_dict['val_mae'].append(val_mae)
+    model_metric_dict['train_r2'].append(train_r2)
+    model_metric_dict['val_r2'].append(val_r2)
+
+
+# Depracated?
+def compute_mean_var(metrics_dict):
+    return {key: {'mean': np.mean(values), 'var': np.var(values)} for key, values in metrics_dict.items()}
+
+
+
+def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None):
+    if model_params is None:
+        model_params = {}
+
+    linear_metrics = {'train_mse': [], 'val_mse': [], 'train_mae': [], 'val_mae': [], 'train_r2': [], 'val_r2': []}
+    xgb_metrics    = copy.deepcopy(linear_metrics)
+    nn_metrics     = copy.deepcopy(linear_metrics)
+    
+    # Linear model
+    linear_model = LinearRegression()
+    train_and_eval(linear_model, linear_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
+
+    # XGBoost model
+    xgb_params = model_params.get('XGBoost', {})
+    final_xgb_params = {
+        'n_estimators': XGB_N_ESTIMATORS,
+        'max_depth': XGB_MAX_DEPTH,
+        'learning_rate': XGB_LEARNING_RATE,
+        'random_state': XGB_RANDOM_STATE,
+        'verbosity': 0,
+        **xgb_params # Overwrite defaults
+    }
+    xgb_model = MultiOutputRegressor(XGBRegressor(**final_xgb_params))
+    train_and_eval(xgb_model, xgb_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
+
+    # NN Model
+    nn_params = model_params.get('Neural Network', {})
+    final_nn_params = {
+        'hidden_layer_sizes': NN_HIDDEN_LAYER_SIZES,
+        'activation': NN_ACTIVATION,
+        'solver': NN_SOLVER,
+        'learning_rate_init': NN_LEARNING_RATE_INIT,
+        'max_iter': NN_MAX_ITER,
+        'random_state': NN_RANDOM_STATE,
+        'early_stopping': NN_EARLY_STOPPING,
+        'n_iter_no_change': NN_N_ITER_NO_CHANGE,
+        'verbose': 0,
+        **nn_params # Overwrite defaults
+    }
+    nn_model = MLPRegressor(**final_nn_params)
+    train_and_eval(nn_model, nn_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
+
+    results = [
+        {'model': 'Linear Regression', **linear_metrics},
+        {'model': 'XGBoost', **xgb_metrics},
+        {'model': 'Neural Network', **nn_metrics},
+    ]
+    
+    # The metrics dicts have lists with one item, so we extract it
+    for result in results:
+        for key, val in result.items():
+            if isinstance(val, list):
+                result[key] = val[0]
+
+    return pd.DataFrame(results)
+
+
+
+def run_kfold_validation(splits_dict: dict, best_params: dict):
+    logger.info("Starting K-Fold Cross-Validation")
+    all_fold_results = []
+    
+    # Loop through each fold defined in the splits dictionary
+    for fold_name, paths in splits_dict['folds'].items():
+        logger.info(f"Running validation for {fold_name}...")
+        
+        # Unpack paths for this fold
+        X_train_path, y_train_path = paths['train']
+        X_val_path, y_val_path = paths['val']
+        
+        # Load data from parquet files
+        X_train = pd.read_parquet(X_train_path)
+        y_train = pd.read_parquet(y_train_path)
+        X_val = pd.read_parquet(X_val_path)
+        y_val = pd.read_parquet(y_val_path)
+        
+        # Run all models on this specific fold
+        fold_results_df = single_experiment(X_train, y_train, X_val, y_val, model_params=best_params)
+        fold_results_df['fold'] = fold_name
+        all_fold_results.append(fold_results_df)
+
+    # Combine results from all folds into a single DataFrame
+    final_results_df = pd.concat(all_fold_results, ignore_index=True)
+    
+    logger.info("K-Fold Cross-Validation Complete")
+    print("\nFull Results Across All Folds:")
+    print(final_results_df.round(4))
+
+    # Calculate and display the mean and standard deviation of metrics across folds
+    summary = final_results_df.drop(columns=['fold']).groupby('model').agg(['mean', 'std'])
+    
+    logger.success("Final Performance Summary (Mean +/- Std Dev)")
+    print("\nAggregated Performance:")
+    print(summary['val_r2'].round(4))
+    
+    # Save summary DataFrame
+    summary_path = CV_RESULTS_DIR / 'summary.csv'
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary.to_csv(summary_path)
+    logger.success(f"Saved results to {summary_path}")
+
+    return summary
+
+
+# Depracated?
+def train():
     """
     Loads processed training and validation data, trains baseline and XGBoost models
     for kcat and KM prediction, performs hyperparameter tuning, and saves the best models.
     """
     logger.info("--- Loading Processed Data ---")
-    X_train = pd.read_parquet(processed_data_dir / 'X_train.parquet')
-    y_train = pd.read_parquet(processed_data_dir / 'y_train.parquet')
-    X_val = pd.read_parquet(processed_data_dir / 'X_val.parquet')
-    y_val = pd.read_parquet(processed_data_dir / 'y_val.parquet')
+    df = pd.read_parquet(PROCESSED_DATA_PATH)
+    X = df.drop(columns=['log_kcat', 'log_km'])
+    y = df[['log_kcat', 'log_km']]
 
-    targets = ['log_kcat', 'log_km']
-    models_output_dir.mkdir(parents=True, exist_ok=True)
     
-    for target in targets:
-        logger.info(f"\n--- Training models for {target} ---")
-        y_train_target = y_train[target]
-        y_val_target = y_val[target]
-        
-        # 1. Baseline Model
-        logger.info("Training Baseline (DummyRegressor)...")
-        dummy = DummyRegressor(strategy="mean")
-        dummy.fit(X_train, y_train_target)
-        model_path = models_output_dir / f'dummy_model_{target}.joblib'
-        joblib.dump(dummy, model_path)
-        logger.success(f"Saved baseline model to {model_path}")
-
-        # 2. Advanced Model (XGBoost) with RandomizedSearchCV
-        logger.info("Training Advanced Model (XGBoost) with Randomized Search...")
-        param_dist = {
-            'n_estimators': randint(100, 500),
-            'max_depth': randint(3, 10),
-            'learning_rate': uniform(0.01, 0.2),
-            'subsample': uniform(0.6, 0.4), # range is 0.6 to 1.0
-            'colsample_bytree': uniform(0.6, 0.4)
-        }
-        xgbr = xgb.XGBRegressor(random_state=42, early_stopping_rounds=10, n_jobs=-1)
-        
-        random_search = RandomizedSearchCV(
-            estimator=xgbr, param_distributions=param_dist, n_iter=20, # 20 iterations for speed
-            cv=3, verbose=2, random_state=42, scoring='r2'
-        )
-        
-        random_search.fit(X_train, y_train_target, eval_set=[(X_val, y_val_target)], verbose=False)
-
-        best_model = random_search.best_estimator_
-        logger.info(f"Best parameters for {target}: {random_search.best_params_}")
-        logger.info(f"Best validation R2 score for {target}: {random_search.best_score_:.4f}")
-
-        model_path = models_output_dir / f'xgboost_model_{target}.joblib'
-        joblib.dump(best_model, model_path)
-        logger.success(f"Saved best XGBoost model to {model_path}")
-
-    logger.success("Model training complete for all targets.")
 
 if __name__ == "__main__":
     app()
