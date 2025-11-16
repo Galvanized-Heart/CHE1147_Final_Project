@@ -36,7 +36,7 @@ SPLIT_RANDOM_STATE = 7  # Random state for train-test split. 7 is the best numbe
 NUM_CROSSVAL_FOLDS = 5  # Number of folds for cross-validation
 
 HPO_TEST_PERCENTAGE = 0.25 # Percentage of training data to reserve for validation set during hyperparam tuning
-HPO_ROUNDS = 30 # Number of rounds to search for optimal hyperparameters for models
+HPO_ROUNDS = 2 # Number of rounds to search for optimal hyperparameters for models
 
 METRICS_DICT = {'train_mse': [], 'test_mse': [], 'train_mae': [], 'test_mae': [], 'train_r2': [], 'test_r2': []}
 

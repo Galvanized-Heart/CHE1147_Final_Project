@@ -23,18 +23,18 @@ def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
     y_val_pred = model.predict(X_val)
 
     train_mse = mean_squared_error(y_train, y_train_pred)
-    test_mse = mean_squared_error(y_val, y_val_pred)
+    val_mse = mean_squared_error(y_val, y_val_pred)
     train_mae = mean_absolute_error(y_train, y_train_pred)
-    test_mae = mean_absolute_error(y_val, y_val_pred)
+    val_mae = mean_absolute_error(y_val, y_val_pred)
     train_r2 = r2_score(y_train, y_train_pred)
-    test_r2 = r2_score(y_val, y_val_pred)
+    val_r2 = r2_score(y_val, y_val_pred)
 
     model_metric_dict['train_mse'].append(train_mse)
-    model_metric_dict['test_mse'].append(test_mse)
+    model_metric_dict['val_mse'].append(val_mse)
     model_metric_dict['train_mae'].append(train_mae)
-    model_metric_dict['test_mae'].append(test_mae)
+    model_metric_dict['val_mae'].append(val_mae)
     model_metric_dict['train_r2'].append(train_r2)
-    model_metric_dict['test_r2'].append(test_r2)
+    model_metric_dict['val_r2'].append(val_r2)
 
 
 # Depracated?

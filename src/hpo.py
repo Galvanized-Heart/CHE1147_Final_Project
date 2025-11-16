@@ -63,12 +63,12 @@ def run_hpo(splits_dict: dict) -> dict:
         random_search = RandomizedSearchCV(
             config['estimator'],
             param_distributions=config['params'],
-            n_iter=HPO_ROUNDS,
+            n_iter=2,
             cv=ps,
             scoring='r2',
             n_jobs=1,
             random_state=SPLIT_RANDOM_STATE,
-            verbose=1
+            verbose=3
         )
 
         # Perform hyperparam search
