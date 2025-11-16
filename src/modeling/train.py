@@ -13,9 +13,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score # 
 from xgboost import XGBRegressor
 from scipy.stats import uniform, randint
 
-from src.config import MODELS_DIR, PROCESSED_DATA_PATH, TEST_PERCENTAGE, SPLIT_RANDOM_STATE, NUM_CROSSVAL_FOLDS, METRICS_DICT, \
-    XGB_RANDOM_STATE, XGB_N_ESTIMATORS, XGB_MAX_DEPTH, XGB_LEARNING_RATE, \
-    NN_RANDOM_STATE, NN_HIDDEN_LAYER_SIZES, NN_ACTIVATION, NN_SOLVER, NN_LEARNING_RATE_INIT, NN_MAX_ITER, NN_EARLY_STOPPING, NN_N_ITER_NO_CHANGE
+from src.config import *
+
 
 
 def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
@@ -38,8 +37,10 @@ def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
     model_metric_dict['test_r2'].append(test_r2)
 
 
+# Depracated?
 def compute_mean_var(metrics_dict):
     return {key: {'mean': np.mean(values), 'var': np.var(values)} for key, values in metrics_dict.items()}
+
 
 
 def single_experiment(X_train, y_train, X_val, y_val):
@@ -91,6 +92,8 @@ def single_experiment(X_train, y_train, X_val, y_val):
 
     return pd.DataFrame(results)
 
+
+
 def run_kfold_validation(splits_dict: dict):
     logger.info("Starting K-Fold Cross-Validation")
     all_fold_results = []
@@ -128,9 +131,16 @@ def run_kfold_validation(splits_dict: dict):
     print("\nAggregated Performance:")
     print(summary['val_r2'].round(4))
     
+    # Save summary DataFrame
+    summary_path = CV_RESULTS_DIR / 'summary.csv'
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary.to_csv(summary_path)
+    logger.success(f"Saved results to {summary_path}")
+
     return summary
 
 
+# Depracated?
 def train():
     """
     Loads processed training and validation data, trains baseline and XGBoost models

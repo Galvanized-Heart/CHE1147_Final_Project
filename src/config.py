@@ -20,6 +20,9 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 PROCESSED_DATA_PATH = PROCESSED_DATA_DIR / "processed_data.parquet"
 SPLITS_DIR = PROCESSED_DATA_DIR / 'splits'
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
+REPORTS_DIR = PROJ_ROOT / "reports"
+FIGURES_DIR = REPORTS_DIR / "figures"
+CV_RESULTS_DIR = REPORTS_DIR / "cross-validation"
 
 TEMP_LO = -10.0  # Minimum temperature in °C
 TEMP_HI = 100.0  # Maximum temperature in °C
