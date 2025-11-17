@@ -22,6 +22,7 @@ def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
     y_train_pred = model.predict(X_train)
     y_val_pred = model.predict(X_val)
 
+    # Calculate metrics
     train_mse = mean_squared_error(y_train, y_train_pred)
     val_mse = mean_squared_error(y_val, y_val_pred)
     train_mae = mean_absolute_error(y_train, y_train_pred)
@@ -29,6 +30,7 @@ def train_and_eval(model, model_metric_dict, X_train, y_train, X_val, y_val):
     train_r2 = r2_score(y_train, y_train_pred)
     val_r2 = r2_score(y_val, y_val_pred)
 
+    # Save metrics
     model_metric_dict['train_mse'].append(train_mse)
     model_metric_dict['val_mse'].append(val_mse)
     model_metric_dict['train_mae'].append(train_mae)
@@ -43,9 +45,22 @@ def compute_mean_var(metrics_dict):
 
 
 
-def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None):
+def single_experiment(
+    X_train: pd.DataFrame,
+    y_train: pd.DataFrame,
+    X_val: pd.DataFrame,
+    y_val: pd.DataFrame,
+    feature_cols: list[str],
+    target_cols: list[str],
+    model_params: dict = None
+):    
     if model_params is None:
         model_params = {}
+
+    X_train_subset = X_train[feature_cols]
+    y_train_subset = y_train[target_cols]
+    X_val_subset = X_val[feature_cols]
+    y_val_subset = y_val[target_cols]
 
     linear_metrics = {'train_mse': [], 'val_mse': [], 'train_mae': [], 'val_mae': [], 'train_r2': [], 'val_r2': []}
     xgb_metrics    = copy.deepcopy(linear_metrics)
@@ -53,7 +68,7 @@ def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None)
     
     # Linear model
     linear_model = LinearRegression()
-    train_and_eval(linear_model, linear_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
+    train_and_eval(linear_model, linear_metrics, X_train_subset, y_train_subset, X_val=X_val_subset, y_val=y_val_subset)
 
     # XGBoost model
     xgb_params = model_params.get('XGBoost', {})
@@ -66,7 +81,7 @@ def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None)
         **xgb_params # Overwrite defaults
     }
     xgb_model = MultiOutputRegressor(XGBRegressor(**final_xgb_params))
-    train_and_eval(xgb_model, xgb_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
+    train_and_eval(xgb_model, xgb_metrics, X_train_subset, y_train_subset, X_val=X_val_subset, y_val=y_val_subset)
 
     # NN Model
     nn_params = model_params.get('Neural Network', {})
@@ -83,7 +98,7 @@ def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None)
         **nn_params # Overwrite defaults
     }
     nn_model = MLPRegressor(**final_nn_params)
-    train_and_eval(nn_model, nn_metrics, X_train, y_train, X_val=X_val, y_val=y_val)
+    train_and_eval(nn_model, nn_metrics, X_train_subset, y_train_subset, X_val=X_val_subset, y_val=y_val_subset)
 
     results = [
         {'model': 'Linear Regression', **linear_metrics},
@@ -101,8 +116,14 @@ def single_experiment(X_train, y_train, X_val, y_val, model_params: dict = None)
 
 
 
-def run_kfold_validation(splits_dict: dict, best_params: dict):
-    logger.info("Starting K-Fold Cross-Validation")
+def run_kfold_validation(
+    splits_dict: dict, 
+    best_params: dict,
+    feature_cols: list[str],
+    target_cols: list[str],
+    experiment_name: str
+):
+    logger.info(f"Starting K-Fold Cross-Validation for {experiment_name}")
     all_fold_results = []
     
     # Loop through each fold defined in the splits dictionary
@@ -120,7 +141,12 @@ def run_kfold_validation(splits_dict: dict, best_params: dict):
         y_val = pd.read_parquet(y_val_path)
         
         # Run all models on this specific fold
-        fold_results_df = single_experiment(X_train, y_train, X_val, y_val, model_params=best_params)
+        fold_results_df = single_experiment(
+            X_train, y_train, X_val, y_val,
+            feature_cols=feature_cols,
+            target_cols=target_cols,
+            model_params=best_params
+        )
         fold_results_df['fold'] = fold_name
         all_fold_results.append(fold_results_df)
 
@@ -128,13 +154,13 @@ def run_kfold_validation(splits_dict: dict, best_params: dict):
     final_results_df = pd.concat(all_fold_results, ignore_index=True)
     
     logger.info("K-Fold Cross-Validation Complete")
-    print("\nFull Results Across All Folds:")
+    print(f"\nFull Results for {experiment_name} Across All Folds:")
     print(final_results_df.round(4))
 
     # Calculate and display the mean and standard deviation of metrics across folds
     summary = final_results_df.drop(columns=['fold']).groupby('model').agg(['mean', 'std'])
     
-    logger.success("Final Performance Summary (Mean +/- Std Dev)")
+    logger.success(f"Final Performance Summary for {experiment_name} (Mean +/- Std Dev)")
     print("\nAggregated Performance:")
     print(summary['val_r2'].round(4))
     
@@ -142,9 +168,45 @@ def run_kfold_validation(splits_dict: dict, best_params: dict):
     summary_path = CV_RESULTS_DIR / 'summary.csv'
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary.to_csv(summary_path)
-    logger.success(f"Saved results to {summary_path}")
+    logger.success(f"Saved results for {experiment_name} to {summary_path}")
 
     return summary
+
+
+def run_all_experiments(splits_dict: dict, best_params: dict):
+    all_targets = KCAT_TARGET_COLS + KM_TARGET_COLS
+
+    experiments = {
+        "basic_features": {
+            "features": BASIC_FEATS_COLS, 
+            "targets": all_targets,
+        },
+        "basic_plus_conditions": {
+            "features": BASIC_FEATS_COLS + PH_FEATS_COLS + TEMPERATURE_FEATS_COLS,
+            "targets": all_targets,
+        },
+        "advanced_features": {
+            "features": ADVANCED_FEATS_COLS, 
+            "targets": all_targets,
+        },
+        "advanced_plus_conditions": {
+            "features": ADVANCED_FEATS_COLS + PH_FEATS_COLS + TEMPERATURE_FEATS_COLS,
+            "targets": all_targets,
+        },
+        "all_features": {
+            "features": BASIC_FEATS_COLS + ADVANCED_FEATS_COLS + PH_FEATS_COLS + TEMPERATURE_FEATS_COLS,
+            "targets": all_targets,
+        }
+    }
+
+    for name, config in experiments.items():
+        run_kfold_validation(
+            splits_dict=splits_dict,
+            best_params=best_params,
+            feature_cols=config["features"],
+            target_cols=config["targets"],
+            experiment_name=name
+        )
 
 
 # Depracated?
