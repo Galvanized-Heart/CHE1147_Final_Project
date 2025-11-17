@@ -23,6 +23,7 @@ EXTERNAL_DATA_DIR = DATA_DIR / "external"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 CV_RESULTS_DIR = REPORTS_DIR / "cross-validation"
+HPO_RESULTS_DIR = REPORTS_DIR / "hpo"
 
 TEMP_LO = -10.0  # Minimum temperature in °C
 TEMP_HI = 100.0  # Maximum temperature in °C
@@ -77,6 +78,16 @@ FEATURE_TRANSFORMS = {
     "aromaticity": ("linear", linear),
     "instability_index": ("linear", linear)
 }
+ADVANCED_FEATS_COLS = [f'morgan_{i}' for i in range(2048)] + [f'esm_{i}' for i in range(320)]
+BASIC_FEATS_COLS = [
+    'log_mol_wt', 'linear_log_p', 'log1p_tpsa', 'log1p_num_h_donors', 
+    'log1p_num_h_acceptors', 'log1p_num_rot_bonds', 'log_seq_length', 
+    'log_seq_mol_wt', 'linear_pI', 'linear_aromaticity', 'linear_instability_index'
+]
+PH_FEATS_COLS = ['linear_pH_value']
+TEMPERATURE_FEATS_COLS = ['linear_temperature_value']
+KCAT_TARGET_COLS = ['log_kcat_value']
+KM_TARGET_COLS = ['log_km_value']
 
 MODELS_DIR = PROJ_ROOT / "models"
 LINEAR_MODEL_PATH = MODELS_DIR / "linear_model.pkl"
