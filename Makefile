@@ -85,7 +85,7 @@ evaluate:
 ## Generate plots after evaluation
 .PHONY: plots
 plots:
-	$(PYTHON_INTERPRETER) src/plots.py
+	$(PYTHON_INTERPRETER) src/plots.py $(INPUT) $(if $(METRICS_FILE), --metrics-file $(METRICS_FILE),)
 
 
 #################################################################################

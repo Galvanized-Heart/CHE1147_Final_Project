@@ -1,0 +1,6 @@
+﻿Model,R_squared
+Linear Regression,0.885
+Random Forest,0.921
+Gradient Boosting,0.954
+Neural Network,0.963
+Support Vector Regressor,0.910
