@@ -1,8 +1,15 @@
 from pathlib import Path
+from dataclasses import dataclass
+import copy
 
 from dotenv import load_dotenv
 from loguru import logger
 import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.neural_network import MLPRegressor
+from xgboost import XGBRegressor
+from skopt.space import Integer, Real, Categorical
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -32,38 +39,11 @@ PH_LO = 0.0  # Minimum pH
 PH_HI = 14.0  # Maximum pH
 PH_MAX_UNCERTAINTY = 2.0  # Maximum allowed uncertainty for pH
 
-TEST_PERCENTAGE = 0.8  # Percentage of data to use for training
-SPLIT_RANDOM_STATE = 7  # Random state for train-test split. 7 is the best number.
-NUM_CROSSVAL_FOLDS = 5  # Number of folds for cross-validation
-
-HPO_TEST_PERCENTAGE = 0.25 # Percentage of training data to reserve for validation set during hyperparam tuning
-HPO_ROUNDS = 2 # Number of rounds to search for optimal hyperparameters for models
-
-METRICS_DICT = {'train_mse': [], 'test_mse': [], 'train_mae': [], 'test_mae': [], 'train_r2': [], 'test_r2': []}
-
-# XGBoost hyperparameters
-XGB_RANDOM_STATE = 14
-XGB_N_ESTIMATORS = 100 # Number of trees in XGBoost
-XGB_MAX_DEPTH = 6 # Maximum depth of trees
-XGB_LEARNING_RATE = 0.1 # Learning rate
-
-# Neural Network hyperparameters
-NN_RANDOM_STATE = 77
-NN_HIDDEN_LAYER_SIZES = (64, 32)
-NN_ACTIVATION = 'relu'
-NN_SOLVER = 'adam'
-NN_LEARNING_RATE_INIT = 0.001
-NN_MAX_ITER = 500  # Max number of epochs
-NN_EARLY_STOPPING = True
-NN_N_ITER_NO_CHANGE = 20
-
 # Processing Hyperparameters
 linear = lambda x: x
 log = np.log
 log1p = np.log1p
-FEATURE_TRANSFORMS = {
-    "kcat_value": ("log", log),
-    "km_value": ("log", log),
+COLUMN_TRANSFORMS = {
     "pH_value": ("linear", linear),
     "temperature_value": ("linear", linear),
     "mol_wt": ("log", log),
@@ -76,26 +56,116 @@ FEATURE_TRANSFORMS = {
     "seq_mol_wt": ("log", log),
     "pI": ("linear", linear),
     "aromaticity": ("linear", linear),
-    "instability_index": ("linear", linear)
+    "instability_index": ("linear", linear),
+    "kcat_value": ("log", log),
+    "km_value": ("log", log),
 }
-ADVANCED_FEATS_COLS = [f'morgan_{i}' for i in range(2048)] + [f'esm_{i}' for i in range(320)]
-BASIC_FEATS_COLS = [
-    'log_mol_wt', 'linear_log_p', 'log1p_tpsa', 'log1p_num_h_donors', 
-    'log1p_num_h_acceptors', 'log1p_num_rot_bonds', 'log_seq_length', 
-    'log_seq_mol_wt', 'linear_pI', 'linear_aromaticity', 'linear_instability_index'
+
+
+BASIC_FEATURE_COLS = [
+    "mol_wt", "log_p", "tpsa", "num_h_donors", 
+    "num_h_acceptors", "num_rot_bonds", "seq_length", 
+    "seq_mol_wt", "pI", "aromaticity", "instability_index"
 ]
-PH_FEATS_COLS = ['linear_pH_value']
-TEMPERATURE_FEATS_COLS = ['linear_temperature_value']
-KCAT_TARGET_COLS = ['log_kcat_value']
-KM_TARGET_COLS = ['log_km_value']
+TEMP_PH_FEATURE_COLS = ["pH_value", "temperature_value"]
+ADVANCED_FEATURE_COLS = [f'morgan_{i}' for i in range(2048)] + [f'esm_{i}' for i in range(320)]
+BASIC_TARGET_COLS = ["kcat_value", "km_value"]
 
-MODELS_DIR = PROJ_ROOT / "models"
-LINEAR_MODEL_PATH = MODELS_DIR / "linear_model.pkl"
-XGB_MODEL_PATH = MODELS_DIR / "xgboost_model.pkl"
-NN_MODEL_PATH = MODELS_DIR / "nn_model.pkl"
 
+@dataclass
+class ExperimentConfig:
+    normalize: bool
+    use_trans: bool
+    use_temp_ph: bool
+    use_advanced: bool
+
+
+def make_col_names_trans(cols):
+    return [f'{transform_name}_{col_name}' for col_name, (transform_name, _) in COLUMN_TRANSFORMS.items() if col_name in cols]
+
+
+def get_feature_cols(exp_config: ExperimentConfig) -> list:
+    feature_cols = copy.deepcopy(BASIC_FEATURE_COLS)
+    if exp_config.use_temp_ph:
+        feature_cols += TEMP_PH_FEATURE_COLS
+
+    if exp_config.use_trans:
+        feature_cols = make_col_names_trans(feature_cols)
+
+    advanced_cols = []
+    if exp_config.use_advanced:
+        advanced_cols = copy.deepcopy(ADVANCED_FEATURE_COLS)
+    
+    return (feature_cols, advanced_cols)
+
+
+def get_target_cols(exp_config) -> list:
+    target_cols = copy.deepcopy(BASIC_TARGET_COLS)
+    if exp_config.use_trans:
+        target_cols = make_col_names_trans(target_cols)
+    
+    return target_cols
+
+
+NORM_TRANS_EXPERIMENT_COLS = {
+    #"no_norm_no_temp_ph": ExperimentConfig(normalize=False, use_trans=False, use_temp_ph=False, use_advanced=False),
+    #"yes_norm_no_temp_ph": ExperimentConfig(normalize=True, use_trans=False, use_temp_ph=False, use_advanced=False),
+    #"no_norm_no_trans": ExperimentConfig(normalize=False, use_trans=False, use_temp_ph=True, use_advanced=False),
+    #"yes_norm_no_trans": ExperimentConfig(normalize=True, use_trans=False, use_temp_ph=True, use_advanced=False),
+    #"no_norm_yes_trans": ExperimentConfig(normalize=False, use_trans=True, use_temp_ph=True, use_advanced=False),
+    "yes_norm_yes_trans": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
+    #"no_norm_yes_advanced": ExperimentConfig(normalize=False, use_trans=True, use_temp_ph=True, use_advanced=True),
+    # "yes_norm_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+}
+PARITY_PLOT_EXPERIMENT_COLS = {
+    "yes_norm_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
+    "yes_norm_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+}
+SHAP_EXPERIMENT_COLS = {
+    "yes_norm_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+}
+
+# HPO search spaces
+XGB_PARAM_SEARCH_SPACE = {
+    'n_estimators': Integer(50, 300),
+    'max_depth': Integer(3, 10),
+    'learning_rate': Real(0.01, 0.3, prior='log-uniform'),
+}
+
+# CORRECTED: The keys now directly match the __init__ parameters of MLPWrapper
+NN_PARAM_SEARCH_SPACE = {
+    'hidden_layer_1': Integer(8, 128),
+    'hidden_layer_2': Integer(8, 128),
+    'activation': Categorical(['relu', 'tanh']),
+    'solver': Categorical(['sgd']),
+    'learning_rate_init': Real(1e-3, 1e-1, prior='log-uniform'),
+    'max_iter': Integer(500, 1500),
+    'early_stopping': Categorical([True]),
+    'n_iter_no_change': Integer(20, 50),
+}
+
+HPO_SEARCH_SPACES = {
+    "linear": {},
+    "xgb": XGB_PARAM_SEARCH_SPACE,
+    "nn": NN_PARAM_SEARCH_SPACE,
+}
+
+# HPO and Modeling Hyperparameters
+HPO_ROUNDS = 2
+
+# SHAP
+SHAP_TEST_PCTG = 0.2
+
+# Directories
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
+
+NORMALIZE_DATA = True
+
+# Evaluation hyperparameters
+MODELS_DIR = PROJ_ROOT / "models"
+HPO_RESULTS_DIR = MODELS_DIR/ "hpo"
+NUM_CROSSVAL_FOLDS = 5
 
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135

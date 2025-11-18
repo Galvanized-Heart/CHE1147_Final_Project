@@ -1,123 +1,93 @@
-from loguru import logger
+import os
 import pandas as pd
-import joblib
-from scipy.stats import uniform, randint, loguniform
-from sklearn.model_selection import RandomizedSearchCV, PredefinedSplit
+import json
+import copy
+from loguru import logger
+from sklearn.compose import ColumnTransformer
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.compose import TransformedTargetRegressor
 from sklearn.multioutput import MultiOutputRegressor
+from sklearn.pipeline import Pipeline
+from skopt import BayesSearchCV
 from xgboost import XGBRegressor
-from sklearn.neural_network import MLPRegressor
 
-from config import HPO_RESULTS_DIR, HPO_ROUNDS, SPLIT_RANDOM_STATE, ADVANCED_FEATS_COLS, BASIC_FEATS_COLS, \
-PH_FEATS_COLS, TEMPERATURE_FEATS_COLS, KCAT_TARGET_COLS, KM_TARGET_COLS
+from config import HPO_ROUNDS, NUM_CROSSVAL_FOLDS, HPO_RESULTS_DIR, HPO_SEARCH_SPACES, ADVANCED_FEATURE_COLS, ExperimentConfig, BASIC_FEATURE_COLS, TEMP_PH_FEATURE_COLS, BASIC_TARGET_COLS, get_feature_cols, get_target_cols
+from modeling.train import LinearWrapper, XGBWrapper, MLPWrapper, make_model_pipeline
 
 
-def run_hpo(
-    splits_dict: dict,
-    feature_cols: list[str],
-    experiment_name: str
-) -> dict:
-    logger.info(f"Starting Hyperparameter Optimization using Pre-defined Split for {experiment_name}")
-    logger.info(f"Using {len(feature_cols)} features.")
+MODELS = {
+    "linear": LinearWrapper(),
+    "xgb": XGBWrapper(),
+    "nn": MLPWrapper(),
+}
 
-    # Read data
-    X_train_path, y_train_path = splits_dict['hpo']['train']
-    X_val_path, y_val_path = splits_dict['hpo']['val']
-    X_hpo_train = pd.read_parquet(X_train_path)
-    y_hpo_train = pd.read_parquet(y_train_path)
-    X_hpo_val = pd.read_parquet(X_val_path)
-    y_hpo_val = pd.read_parquet(y_val_path)
 
-    # Select feature columns
-    X_hpo_train = X_hpo_train[feature_cols]
-    X_hpo_val = X_hpo_val[feature_cols]
-
-    # Combine for RandomizedSearchCV
-    X_combined = pd.concat([X_hpo_train, X_hpo_val], ignore_index=True)
-    y_combined = pd.concat([y_hpo_train, y_hpo_val], ignore_index=True)
-
-    # Create PredefinedSplit index so best_score_ uses validation metrics
-    split_index = [-1] * len(X_hpo_train) + [0] * len(X_hpo_val)
-    ps = PredefinedSplit(test_fold=split_index)
-
-    # HPO configs
-    hpo_configs = [
-        {
-            'name': 'XGBoost',
-            'estimator': MultiOutputRegressor(XGBRegressor(random_state=SPLIT_RANDOM_STATE, verbosity=0)),
-            'params': {
-                'estimator__n_estimators': randint(100, 1000),
-                'estimator__max_depth': randint(3, 15),
-                'estimator__learning_rate': loguniform(0.01, 0.3),
-                'estimator__subsample': uniform(0.6, 0.4),
-                'estimator__colsample_bytree': uniform(0.6, 0.4)
-            }
-        },
-        {
-            'name': 'Neural Network',
-            'estimator': MLPRegressor(random_state=SPLIT_RANDOM_STATE, early_stopping=True, n_iter_no_change=10, max_iter=500),
-            'params': {
-                'hidden_layer_sizes': [(50,), (100,), (50, 50), (100, 50)],
-                'activation': ['relu', 'tanh'],
-                'solver': ['adam'],
-                'alpha': loguniform(1e-5, 1e-2),
-                'learning_rate_init': loguniform(1e-4, 1e-2),
-            }
-        }
-    ]
+def bayes_hpo(model, param_search_space: dict, df: pd.DataFrame, exp_config: ExperimentConfig) -> dict:
+    if param_search_space is None or len(param_search_space) == 0:
+        return {}
     
-    all_best_params = {}
+    basic_feature_cols, advanced_feature_cols = get_feature_cols(exp_config)
 
-    for config in hpo_configs:
-        logger.info(f"Tuning {config['name']} for {experiment_name} with {HPO_ROUNDS} rounds")
+    model.normalize = exp_config.normalize
+    model.norm_feature_cols = basic_feature_cols
 
-        # Initialize HPO object
-        random_search = RandomizedSearchCV(
-            config['estimator'],
-            param_distributions=config['params'],
-            n_iter=2,
-            cv=ps,
-            scoring='r2',
-            n_jobs=1,
-            random_state=SPLIT_RANDOM_STATE,
-            verbose=3
+    feature_cols = basic_feature_cols + advanced_feature_cols 
+    target_cols = get_target_cols(exp_config)
+
+    X = df[feature_cols]
+    y = df[target_cols]
+
+    model_search = BayesSearchCV(
+        estimator=model,
+        search_spaces=param_search_space,
+        n_iter=HPO_ROUNDS,
+        cv=NUM_CROSSVAL_FOLDS,
+        n_jobs=-1,
+        random_state=0,
+        verbose=0,
+    )
+
+    model_search.fit(X, y)
+
+    return model_search.best_params_
+
+
+def bayes_hpo_pipeline(config_name: str, model, param_search_space: dict, df: pd.DataFrame, exp_config: ExperimentConfig) -> dict:
+    os.makedirs(HPO_RESULTS_DIR, exist_ok=True)
+    output_path = HPO_RESULTS_DIR / f"hpo_{config_name}.json"
+    if output_path.exists():
+        logger.info(f"Skipping HPO for {config_name}: results already exist at {output_path}")
+        with open(output_path, "r") as f:
+            best_params = json.load(f)
+        return best_params
+    
+    logger.info(f"Running HPO for config: {config_name}")
+
+    best_params = bayes_hpo(model, param_search_space, df=df, exp_config=exp_config)
+
+    with open(output_path, "w") as f:
+        json.dump(best_params, f, indent=4)
+
+    logger.info(f"Saved HPO results to: {output_path}")
+
+    return best_params
+
+
+def run_full_bayes_hpo(config_name: str, df: pd.DataFrame, exp_config: ExperimentConfig) -> dict:
+    best_params_dict = {}
+    for (model_name, model) in MODELS.items():
+        param_search_space = HPO_SEARCH_SPACES[model_name]
+        best_params = bayes_hpo_pipeline(
+            config_name=f"{config_name}_{model_name}",
+            model=model,
+            param_search_space=param_search_space,
+            df=df,
+            exp_config=exp_config,
         )
 
-        # Perform hyperparam search
-        random_search.fit(X_combined, y_combined)
-        
-        # Report scores
-        logger.success(f"Best validation R2 score for {config['name']}: {random_search.best_score_:.4f}")
-        
-        best_params_cleaned = {k.split('__')[-1]: v for k, v in random_search.best_params_.items()}
-        all_best_params[config['name']] = best_params_cleaned
-        
-        print("Best hyperparameters found:")
-        print(best_params_cleaned)
+        best_params_dict[model_name] = best_params
+    
+    return best_params_dict
 
-        # Save params
-        hpo_results_path = HPO_RESULTS_DIR / f'best_params_{experiment_name}.joblib'
-        hpo_results_path.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(all_best_params, hpo_results_path)
-        logger.success(f"Saved best parameters for {experiment_name} to {hpo_results_path}")
 
-    return all_best_params
-
-def run_all_hpo(splits_dict: dict):
-    """
-    Orchestrates HPO runs for different predefined feature sets.
-    """
-    hpo_experiments = {
-        "basic_plus_conditions": {
-            "features": BASIC_FEATS_COLS + PH_FEATS_COLS + TEMPERATURE_FEATS_COLS,
-        },
-        "all_features": {
-            "features": BASIC_FEATS_COLS + ADVANCED_FEATS_COLS + PH_FEATS_COLS + TEMPERATURE_FEATS_COLS,
-        }
-    }
-
-    for name, config in hpo_experiments.items():
-        run_hpo(
-            splits_dict=splits_dict,
-            feature_cols=config["features"],
-            experiment_name=name
-        )

@@ -15,7 +15,7 @@ from rdkit.Chem import Descriptors, rdFingerprintGenerator
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
 from transformers import AutoTokenizer, EsmModel
 
-from config import INTERIM_DATA_PATH, PROCESSED_DATA_PATH, FEATURE_TRANSFORMS
+from config import INTERIM_DATA_PATH, PROCESSED_DATA_PATH, COLUMN_TRANSFORMS
 
 
 class FeatureDataset(Dataset):
@@ -159,7 +159,7 @@ def process_data():
 
     # Transform values
     logger.info("Applying feature transformations to target variables...")
-    for (col, (transform_name, transform)) in FEATURE_TRANSFORMS.items():
+    for (col, (transform_name, transform)) in COLUMN_TRANSFORMS.items():
         df[f'{transform_name}_{col}'] = transform(df[col])
 
     logger.info(f"Saving processed data to {PROCESSED_DATA_PATH}...")
