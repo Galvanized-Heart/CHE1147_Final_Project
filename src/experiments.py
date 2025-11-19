@@ -6,7 +6,7 @@ import shap
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from config import PROCESSED_DATA_PATH, NORM_TRANS_EXPERIMENT_COLS, PARITY_PLOT_EXPERIMENT_COLS, SHAP_EXPERIMENT_COLS, SHAP_TEST_PCTG, get_target_cols
+from config import PROCESSED_DATA_PATH, NORM_TRANS_EXPERIMENT_COLS, PARITY_PLOT_EXPERIMENT_COLS, SHAP_EXPERIMENT_COLS, SHAP_TEST_PCTG, get_target_cols, FIGURES_DIR
 from hpo import run_full_bayes_hpo
 from modeling.train import single_experiment
 
@@ -48,165 +48,282 @@ def experiment_on_cols(df, cols_dict):
     return exp_results_dict
 
 
-def norm_trans_experiment():
-    logger.info("Starting Normalization and Transformation Experiments")
+def temp_ph_advanced_experiment():
     df = pd.read_parquet(PROCESSED_DATA_PATH)
+    df = df.iloc[:, 1000] # TODO: Remove!
     exp_results_dict = experiment_on_cols(df, NORM_TRANS_EXPERIMENT_COLS)
 
-    sns.set_theme(style="whitegrid")
-    fig, axes = plt.subplots(4, 2, figsize=(16, 22))
-    axes = axes.flatten()
-
     plot_data = []
+    metrics_to_plot = {
+        'val_mse': 'Validation MSE',
+        'val_mae': 'Validation MAE',
+        'val_r2': 'Validation R²',
+    }
+
+    exp_names_dict = {
+        "no_temp_ph_no_advanced": "No Temp/pH or Advanced Features",
+        "yes_temp_ph_no_advanced": "Temp/pH, No Advanced Features",
+        "yes_temp_ph_yes_advanced": "Temp/pH and Advanced Features"
+    }
 
     for exp_name, results_by_model in exp_results_dict.items():
         exp_config = NORM_TRANS_EXPERIMENT_COLS[exp_name]
         target_names = get_target_cols(exp_config)
         for model_name, results in results_by_model.items():
-            # 'val_mse' is now a list of lists: [[fold1_t1, f1_t2], [fold2_t1, f2_t2], ...]
-            val_mse_per_fold = results['metrics'].val_mse
-            
-            # Calculate the mean MSE across folds for each target
-            avg_mse_per_target = np.mean(val_mse_per_fold, axis=0)
-            
-            for i, mse in enumerate(avg_mse_per_target):
-                target_name = target_names[i]
+            for attr_name, plot_title in metrics_to_plot.items():
+                metric_per_fold = getattr(results['metrics'], attr_name)
                 
-                plot_data.append({
-                    "experiment": exp_name,
-                    "model": model_name,
-                    "target": target_name,
-                    "val_mse": mse
-                })
+                avg_metric_per_target = np.mean(metric_per_fold, axis=0)
+                
+                for i, metric_value in enumerate(avg_metric_per_target):
+                    plot_data.append({
+                        "experiment": exp_name,
+                        "model": model_name,
+                        "target": target_names[i],
+                        "metric_name": plot_title,
+                        "metric_value": metric_value,
+                    })
     
     df_plot = pd.DataFrame(plot_data)
 
-    # 2. Create the 4x2 subplot grid
-    sns.set_theme(style="whitegrid")
-    fig, axes = plt.subplots(4, 2, figsize=(18, 24), constrained_layout=True)
-    axes = axes.flatten()
-
+    # --- 3. Create the N x M Subplot Grid ---
     all_exp_names = list(NORM_TRANS_EXPERIMENT_COLS.keys())
+    all_metric_names = list(metrics_to_plot.values())
     
-    for i, exp_name in enumerate(all_exp_names):
-        ax = axes[i]
-        
-        # Filter data for the current experiment
-        exp_df = df_plot[df_plot["experiment"] == exp_name]
+    N = len(all_exp_names)
+    M = len(all_metric_names)
 
-        if exp_df.empty:
-            ax.text(0.5, 0.5, 'No results for this experiment', ha='center', va='center', transform=ax.transAxes)
-            ax.set_title(exp_name, fontsize=14)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            continue
+    sns.set_theme(style="whitegrid")
+    # Dynamically set figsize based on grid size
+    fig, axes = plt.subplots(N, M, figsize=(M * 5.5, N * 5), constrained_layout=True)
+    
+    # Ensure axes is always a 2D array for consistent indexing, even if N=1 or M=1
+    axes = np.atleast_2d(axes)
 
-        # Create the grouped bar plot
-        bars = sns.barplot(
-            data=exp_df,
-            x="model",
-            y="Validation MSE",
-            hue="target",
-            ax=ax,
-            palette="muted"
-        )
-        
-        # Add value annotations on top of the bars
-        for bar in bars.patches:
-            ax.annotate(format(bar.get_height(), '.3f'),
-                        (bar.get_x() + bar.get_width() / 2, bar.get_height()),
-                        ha='center', va='center',
-                        size=9, xytext=(0, 8),
-                        textcoords='offset points')
+    for row_idx, exp_name in enumerate(all_exp_names):
+        for col_idx, metric_name in enumerate(all_metric_names):
+            ax = axes[row_idx, col_idx]
+            
+            # Filter the DataFrame for the specific data for this subplot
+            exp_df = df_plot[
+                (df_plot["experiment"] == exp_name) & 
+                (df_plot["metric_name"] == metric_name)
+            ]
 
-        ax.set_title(exp_name, fontsize=14)
-        ax.set_ylabel("Validation MSE")
-        ax.set_xlabel(None)
-        
-        # Adjust y-limit to make space for annotations
-        current_ylim = ax.get_ylim()
-        ax.set_ylim(current_ylim[0], current_ylim[1] * 1.15)
-        ax.legend(title='Target')
+            if exp_df.empty:
+                ax.text(0.5, 0.5, 'No results', ha='center', va='center', transform=ax.transAxes)
+            else:
+                # Create the grouped bar plot for this cell
+                bars = sns.barplot(
+                    data=exp_df,
+                    x="model",
+                    y="metric_value",
+                    hue="target",
+                    ax=ax,
+                    palette="muted"
+                )
+                
+                # Add value annotations on top of the bars
+                for bar in bars.patches:
+                    ax.annotate(format(bar.get_height(), '.3f'),
+                                (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                                ha='center', va='center',
+                                size=9, xytext=(0, 8),
+                                textcoords='offset points')
+                
+                # Adjust y-limit to make space for annotations
+                current_ylim = ax.get_ylim()
+                ax.set_ylim(current_ylim[0], current_ylim[1] * 1.15)
+                ax.legend(title='Target')
 
+            # --- Set Titles and Labels ---
+            # Column titles are the metric names (only for the top row)
+            if row_idx == 0:
+                ax.set_title(metric_name, fontsize=14, weight='bold')
+
+            # Row titles are the experiment names (only for the first column)
+            if col_idx == 0:
+                ax.set_ylabel(exp_names_dict[exp_name], fontsize=14, weight='bold')
+            else:
+                ax.set_ylabel(None)
+            
+            ax.set_xlabel(None)
+
+    fig.suptitle("Model Performance Across Different Input Features", fontsize=20)
+    fig_save_path = FIGURES_DIR / "temp_ph_advanced_experiment_grid.png"
+    plt.savefig(fig_save_path, dpi=300)
+    logger.info(f"Saved experiment grid plot to {fig_save_path}")
+    plt.show()
 
 
 def parity_plot_experiment():
+    """
+    Runs parity plot experiments and generates a 1xM grid of subplots,
+    where M is the number of experiments. Each subplot shows the parity
+    data for all models for that specific experiment.
+    """
     logger.info("Starting Parity Plot Experiment")
     df = pd.read_parquet(PROCESSED_DATA_PATH)
+    df = df.head(1000)
+    
+    # --- 1. Run the Experiments ---
     exp_results_dict = experiment_on_cols(df, PARITY_PLOT_EXPERIMENT_COLS)
 
+    if not exp_results_dict:
+        logger.warning("No parity plot experiments were run. Skipping plot generation.")
+        return
+
+    # --- 2. Create the 1 x M Subplot Grid ---
+    all_exp_names = list(exp_results_dict.keys())
+    M = len(all_exp_names)
+
     sns.set_theme(style="darkgrid")
-    fig, axes = plt.subplots(1, 3, figsize=(20, 6))
+    fig, axes = plt.subplots(1, M, figsize=(M * 6.5, 6), constrained_layout=True)
 
-    # We will plot for the 'yes_norm_yes_advanced' experiment
-    exp_name = "yes_norm_yes_advanced"
-    if exp_name not in exp_results_dict:
-        # Fallback to the first available experiment if the target is not found
-        exp_name = list(exp_results_dict.keys())[0]
+    # Ensure 'axes' is always an array, even if M=1, for consistent looping
+    axes = np.atleast_1d(axes)
 
-    model_results = exp_results_dict[exp_name]
     models_to_plot = ['linear', 'xgb', 'nn']
+    # Define colors to distinguish the models in each subplot
+    model_colors = {'linear': 'C0', 'xgb': 'C2', 'nn': 'C1'}
 
-    for ax, model_name in zip(axes, models_to_plot):
-        parity_data = model_results[model_name]['parity_data']
-        y_true = parity_data.y_true
-        y_pred = parity_data.y_pred
+    # --- 3. Loop Through Experiments and Create a Subplot for Each ---
+    for ax, exp_name in zip(axes, all_exp_names):
+        model_results = exp_results_dict[exp_name]
+
+        # Plot all three models on the same subplot (ax)
+        for model_name in models_to_plot:
+            if model_name not in model_results:
+                continue
+
+            parity_data = model_results[model_name]['parity_data']
+            y_true = parity_data.y_true
+            y_pred = parity_data.y_pred
+            
+            # Scatter plot for the current model with a specific color and label
+            ax.scatter(
+                y_true, y_pred, 
+                alpha=0.5, 
+                color=model_colors.get(model_name), 
+                label=model_name.upper()
+            )
         
-        ax.scatter(y_true, y_pred, alpha=0.5, label="Predictions")
+        # --- 4. Set Diagonal Line and Limits After Plotting All Models ---
+        # Get the final axis limits after all scatters have been plotted
+        xlims = ax.get_xlim()
+        ylims = ax.get_ylim()
         
-        # Add a diagonal line for reference
-        lims = [
-            np.min([ax.get_xlim(), ax.get_ylim()]),
-            np.max([ax.get_xlim(), ax.get_ylim()]),
-        ]
+        # Determine the overall min and max to make the plot square
+        min_val = min(xlims[0], ylims[0])
+        max_val = max(xlims[1], ylims[1])
+        lims = [min_val, max_val]
+        
+        # Add the diagonal "ideal" line
         ax.plot(lims, lims, 'r--', alpha=0.75, zorder=0, label="Ideal")
+        
+        # Apply the final limits and settings
         ax.set_aspect('equal', 'box')
         ax.set_xlim(lims)
         ax.set_ylim(lims)
         
-        ax.set_title(f"Parity Plot for {model_name.upper()} Model", fontsize=14)
+        # --- 5. Add Labels, Title, and Legend ---
+        ax.set_title(f"Experiment: {exp_name}", fontsize=14)
         ax.set_xlabel("True Values", fontsize=12)
         ax.set_ylabel("Predicted Values", fontsize=12)
         ax.legend()
 
-    plt.suptitle(f"Parity Plots for Experiment: {exp_name}", fontsize=16, y=1.03)
-    plt.tight_layout()
-    plt.savefig("parity_plots.png", dpi=300)
-    logger.info("Saved parity plots to parity_plots.png")
+    fig.suptitle("Model Parity Plots Across Different Experiments", fontsize=18)
+    plt.savefig("parity_plots_by_experiment.png", dpi=300)
+    logger.info("Saved parity plots to parity_plots_by_experiment.png")
+    plt.show()
 
 
 def shap_experiment():
+    """
+    Runs SHAP analysis and generates a grid of summary plots.
+    The grid has N rows (for N targets) and M columns (for M models).
+    """
     logger.info("Starting SHAP Experiment")
     df = pd.read_parquet(PROCESSED_DATA_PATH)
-    shap_results_dict = experiment_on_cols(df, SHAP_EXPERIMENT_COLS)
+    df = df.head(1000) # TODO: Remove!
+    print("B:", df.columns.tolist())
 
-    sns.set_theme(style="white")
-    fig, axes = plt.subplots(2, 3, figsize=(25, 12))
+    # --- 1. Get the Trained Models ---
+    # We run the experiment to get the final models trained on all data.
+    # We assume SHAP_EXPERIMENT_COLS contains exactly one experiment configuration.
+    if len(SHAP_EXPERIMENT_COLS) != 1:
+        raise ValueError("SHAP_EXPERIMENT_COLS should contain exactly one experiment configuration.")
+    
+    exp_name = list(SHAP_EXPERIMENT_COLS.keys())[0]
+    exp_config = SHAP_EXPERIMENT_COLS[exp_name]
+    
+    # This dictionary will contain the final fitted models under results['model']
+    exp_run_results = experiment_on_cols(df, SHAP_EXPERIMENT_COLS)[exp_name]
+
+    # --- 2. Perform SHAP Analysis for Each Model ---
+    shap_data = {}
     models_to_plot = ['linear', 'xgb', 'nn']
     
-    target_names = SHAP_EXPERIMENT_COLS["yes_norm_yes_advanced"][3]
+    feature_cols, _ = get_feature_cols(exp_config) # Get basic and advanced features
+    target_cols = get_target_cols(exp_config)
+    X = df[feature_cols]
+    y = df[target_cols]
+    
+    logger.info("Performing SHAP analysis on each model...")
+    for model_name in models_to_plot:
+        final_model = exp_run_results[model_name]['model']
+        shap_values, X_test_sample = shap_analysis(X, y, final_model)
+        shap_data[model_name] = {
+            'shap_values': shap_values,
+            'X_test_sample': X_test_sample
+        }
 
-    for col_idx, model_name in enumerate(models_to_plot):
-        shap_values_list = shap_results_dict[model_name]['shap_values']
-        X_test_sample = shap_results_dict[model_name]['X_test_sample']
+    # --- 3. Create the N x M Subplot Grid ---
+    N = len(target_cols)  # Number of targets = number of rows
+    M = len(models_to_plot) # Number of models = number of columns
 
-        for row_idx, target_name in enumerate(target_names):
+    sns.set_theme(style="white")
+    fig, axes = plt.subplots(N, M, figsize=(M * 7, N * 5), constrained_layout=True)
+    axes = np.atleast_2d(axes) # Ensure axes is always a 2D array
+
+    # --- 4. Loop Through Grid and Create Plots ---
+    for row_idx, target_name in enumerate(target_cols):
+        for col_idx, model_name in enumerate(models_to_plot):
             ax = axes[row_idx, col_idx]
-            plt.sca(ax)  # Set the current axis for shap to use
-
-            ax.set_title(f'SHAP Summary for {model_name.upper()}\nTarget: {target_name}')
             
-            # Get the shap values for the current target
-            current_shap_values = shap_values_list[row_idx]
+            # Retrieve the pre-calculated SHAP data for this model
+            model_shap_data = shap_data[model_name]
+            shap_values_list = model_shap_data['shap_values']
+            X_test_sample = model_shap_data['X_test_sample']
 
-            # Create the SHAP summary plot on the current axis
-            shap.summary_plot(current_shap_values, X_test_sample, show=False)
+            # CRITICAL: Select the SHAP values for the current target (row)
+            # shap_values_list is a list where index corresponds to the target index
+            current_target_shap_values = shap_values_list[row_idx]
+            
+            # Create the SHAP summary plot directly on the specified axis
+            shap.summary_plot(
+                current_target_shap_values, 
+                X_test_sample, 
+                ax=ax, 
+                show=False
+            )
 
-    plt.suptitle("SHAP Feature Importance Summary", fontsize=20, y=1.0)
-    # Use tight_layout and adjust rect to prevent the suptitle from overlapping plots
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig("shap_summary_plots.png", dpi=300)
-    logger.info("Saved SHAP summary plots to shap_summary_plots.png")
+            # --- Set Titles and Labels for Clarity ---
+            # Set model names as column titles only for the top row
+            if row_idx == 0:
+                ax.set_title(model_name.upper(), fontsize=16, weight='bold')
+
+            # Set target names as row titles only for the first column
+            if col_idx == 0:
+                # Use a text object for better placement than ylabel
+                fig.text(0, (N - row_idx - 0.5) / N, target_name, 
+                         ha='center', va='center', rotation='vertical', 
+                         fontsize=16, weight='bold')
+
+    fig.suptitle("SHAP Feature Importance Summary", fontsize=20)
+    plt.savefig("shap_summary_plots_grid.png", dpi=300)
+    logger.info("Saved SHAP summary plots to shap_summary_plots_grid.png")
+    plt.show()
 
 
 

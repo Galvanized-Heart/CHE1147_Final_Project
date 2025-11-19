@@ -5,7 +5,7 @@ import pandas as pd
 from dataset import download_and_clean_data
 from features import process_data
 
-from experiments import norm_trans_experiment, parity_plot_experiment, shap_experiment
+from experiments import temp_ph_advanced_experiment, parity_plot_experiment, shap_experiment
 
 
 def main() -> None:
@@ -16,12 +16,10 @@ def main() -> None:
     process_data()
 
     # Run Experiments
-    norm_trans_experiment()
-    #parity_plot_experiment()
-    #shap_experiment()
+    #temp_ph_advanced_experiment()
+    parity_plot_experiment()
+    shap_experiment()
 
-
-    
 
 if __name__ == "__main__":
     main()

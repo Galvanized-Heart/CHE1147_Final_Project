@@ -5,10 +5,6 @@ import copy
 from dotenv import load_dotenv
 from loguru import logger
 import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.multioutput import MultiOutputRegressor
-from sklearn.neural_network import MLPRegressor
-from xgboost import XGBRegressor
 from skopt.space import Integer, Real, Categorical
 
 # Load environment variables from .env file if it exists
@@ -61,7 +57,6 @@ COLUMN_TRANSFORMS = {
     "km_value": ("log", log),
 }
 
-
 BASIC_FEATURE_COLS = [
     "mol_wt", "log_p", "tpsa", "num_h_donors", 
     "num_h_acceptors", "num_rot_bonds", "seq_length", 
@@ -108,21 +103,17 @@ def get_target_cols(exp_config) -> list:
 
 
 NORM_TRANS_EXPERIMENT_COLS = {
-    #"no_norm_no_temp_ph": ExperimentConfig(normalize=False, use_trans=False, use_temp_ph=False, use_advanced=False),
-    #"yes_norm_no_temp_ph": ExperimentConfig(normalize=True, use_trans=False, use_temp_ph=False, use_advanced=False),
-    #"no_norm_no_trans": ExperimentConfig(normalize=False, use_trans=False, use_temp_ph=True, use_advanced=False),
-    #"yes_norm_no_trans": ExperimentConfig(normalize=True, use_trans=False, use_temp_ph=True, use_advanced=False),
-    #"no_norm_yes_trans": ExperimentConfig(normalize=False, use_trans=True, use_temp_ph=True, use_advanced=False),
-    "yes_norm_yes_trans": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
-    #"no_norm_yes_advanced": ExperimentConfig(normalize=False, use_trans=True, use_temp_ph=True, use_advanced=True),
-    # "yes_norm_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+    "no_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=False, use_advanced=False),
+    "yes_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
+    "yes_temp_ph_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
 }
 PARITY_PLOT_EXPERIMENT_COLS = {
-    "yes_norm_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
-    "yes_norm_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+    "no_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=False, use_advanced=False),
+    #"yes_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
+    #"yes_temp_ph_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
 }
 SHAP_EXPERIMENT_COLS = {
-    "yes_norm_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+    "no_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
 }
 
 # HPO search spaces
@@ -160,12 +151,10 @@ SHAP_TEST_PCTG = 0.2
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
-NORMALIZE_DATA = True
-
 # Evaluation hyperparameters
 MODELS_DIR = PROJ_ROOT / "models"
 HPO_RESULTS_DIR = MODELS_DIR/ "hpo"
-NUM_CROSSVAL_FOLDS = 5
+NUM_CROSSVAL_FOLDS = 2
 
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135

@@ -188,6 +188,7 @@ def single_model_experiment(
     exp_config: ExperimentConfig,
     model: BaseWrapper
     ):
+    logger.info(f"Starting experiment on {model.__class__.__name__}")
     kf = KFold(n_splits=NUM_CROSSVAL_FOLDS, shuffle=True, random_state=0)
 
     model_metrics = ModelMetrics()
@@ -239,7 +240,7 @@ def single_experiment(
     xgb_model = XGBWrapper(
         n_estimators=xgb_params['n_estimators'], 
         max_depth=xgb_params['max_depth'], 
-        learning_rate=xgb_params['learning_rate'], 
+        learning_rate=xgb_params['learning_rate'],
         normalize=exp_config.normalize, 
         norm_feature_cols=basic_feature_cols
     )
