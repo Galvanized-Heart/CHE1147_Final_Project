@@ -109,8 +109,8 @@ NORM_TRANS_EXPERIMENT_COLS = {
 }
 PARITY_PLOT_EXPERIMENT_COLS = {
     "no_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=False, use_advanced=False),
-    #"yes_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
-    #"yes_temp_ph_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
+    "yes_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=False),
+    "yes_temp_ph_yes_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
 }
 SHAP_EXPERIMENT_COLS = {
     "no_temp_ph_no_advanced": ExperimentConfig(normalize=True, use_trans=True, use_temp_ph=True, use_advanced=True),
@@ -142,7 +142,7 @@ HPO_SEARCH_SPACES = {
 }
 
 # HPO and Modeling Hyperparameters
-HPO_ROUNDS = 2
+HPO_ROUNDS = 5
 
 # SHAP
 SHAP_TEST_PCTG = 0.2
@@ -150,6 +150,7 @@ SHAP_TEST_PCTG = 0.2
 # Directories
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
+DATA_OUTPUT_DIR = REPORTS_DIR / "data"
 
 # Evaluation hyperparameters
 MODELS_DIR = PROJ_ROOT / "models"
