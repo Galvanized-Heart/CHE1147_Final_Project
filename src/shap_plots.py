@@ -8,14 +8,14 @@ import numpy as np
 # ---------------------------------------------------------
 model_map = {
     "nn": "Neural Network",
-    "linear": "Linear Regression", 
+    "linear": "Linear Regression",
     "xgb": "Gradient Boosting",
-    "rf": "Random Forest",  # Added based on your previous data
-    "Linear": "Linear Regression" # Handling potential capitalization differences
+    "rf": "Random Forest",
+    "Linear": "Linear Regression"
 }
 
 target_map = {
-    "log_kcat_value": "Log $k_{cat}$ Value", # Using LaTeX for subscript
+    "log_kcat_value": "Log $k_{cat}$ Value",
     "log_km_value": "Log $K_M$ Value"
 }
 
@@ -40,18 +40,22 @@ feature_map = {
 shap_csv_path = "/Users/joshgoldman/Documents/Courses/CHE1147/CHE1147_Final_Project/reports/data/shap_experiment_data.csv"
 df = pd.read_csv(shap_csv_path)
 
-# 3. SETUP GRID
+# 3. SETUP GRID - 3 ROWS (MODELS) x 2 COLUMNS (TARGETS)
+# --------------------------------------------------------------------
 unique_targets = sorted(df['target'].unique())
 unique_models = sorted(df['model'].unique())
-n_rows = len(unique_targets)
-n_cols = len(unique_models)
+
+# --- SWAPPED: n_rows is now based on models, n_cols on targets ---
+n_rows = len(unique_models)
+n_cols = len(unique_targets)
 
 fig, axes = plt.subplots(
-    nrows=n_rows, 
-    ncols=n_cols, 
-    figsize=(10 * n_cols, 6 * n_rows), 
+    nrows=n_rows,
+    ncols=n_cols,
+    figsize=(9 * n_cols, 7 * n_rows),
     squeeze=False,
-    gridspec_kw={'wspace': 0.6, 'hspace': 0.4}
+    # --- Adjusted hspace for the new 3-row layout ---
+    gridspec_kw={'wspace': 0, 'hspace': 0.35}
 )
 
 # --- MONKEY PATCH TO PREVENT SHAP FROM BREAKING SUBPLOTS ---
@@ -60,75 +64,56 @@ plt.tight_layout = lambda *args, **kwargs: None
 # -----------------------------------------------------------
 
 try:
-    for i, target in enumerate(unique_targets):
-        for j, model in enumerate(unique_models):
+    # --- SWAPPED LOOPS: Outer loop is now models (rows), inner loop is targets (columns) ---
+    for i, model in enumerate(unique_models):
+        for j, target in enumerate(unique_targets):
             ax = axes[i, j]
-            
+
             subset = df[(df['model'] == model) & (df['target'] == target)]
-            
+
             if subset.empty:
                 ax.text(0.5, 0.5, "No Data", ha='center', va='center')
                 ax.set_axis_off()
             else:
-                # Pivot Data
                 shap_vals = subset.pivot(index='sample_id', columns='feature', values='shap_value')
                 feature_vals = subset.pivot(index='sample_id', columns='feature', values='feature_value')
-                
-                # Ensure columns align
                 feature_vals = feature_vals[shap_vals.columns]
-                
-                # --- APPLY FEATURE MAPPING HERE ---
-                # We rename the columns of the DataFrame passed to SHAP.
-                # .rename() will use the new name if found in dict, or keep original if not.
                 feature_vals_renamed = feature_vals.rename(columns=feature_map)
-                # ----------------------------------
 
-                # Set Active Axis
                 plt.sca(ax)
-                
-                # Generate SHAP Plot using the RENAMED dataframe
                 shap.summary_plot(
-                    shap_vals.values,       # Numerical SHAP values
-                    feature_vals_renamed,   # Feature values with Mapped Column Names
-                    show=False, 
+                    shap_vals.values,
+                    feature_vals_renamed,
+                    show=False,
                     color_bar=False,
-                    plot_size=None 
+                    plot_size=None
                 )
-                
-                # --- APPLY MODEL & TARGET MAPPING HERE ---
-                # Use .get(key, key) to return the original string if key is missing
+
                 display_model = model_map.get(model, model)
                 display_target = target_map.get(target, target)
-                
-                ax.set_title(f"{display_model}\n{display_target}", fontsize=14, pad=15)
-                ax.set_xlabel("SHAP value" if i == n_rows - 1 else "")
+                ax.set_title(f"{display_model}\n{display_target}", fontsize=16, pad=15)
 
-            # Draw the Outline Frame
-            pad_left = 0.6   
-            pad_right = 0.05 
-            pad_top = 0.15    
-            pad_bottom = 0.15 
+                # --- HIDE LABELS TO CREATE A CLEAN, COMPACT GRID (Logic remains the same) ---
 
-            rect = patches.Rectangle(
-                (0 - pad_left, 0 - pad_bottom), 
-                1 + pad_left + pad_right, 
-                1 + pad_bottom + pad_top, 
-                linewidth=2, 
-                edgecolor='black', 
-                facecolor='none', 
-                transform=ax.transAxes, 
-                clip_on=False,          
-                zorder=10               
-            )
-            ax.add_patch(rect)
+                # 1. X-axis: Only show label and ticks on the bottom row
+                if i < n_rows - 1:
+                    ax.set_xlabel("")
+                    ax.tick_params(axis='x', labelbottom=False)
+                else:
+                    ax.set_xlabel("SHAP value")
+
+                # 2. Y-axis: Only show label and ticks on the first column
+                if j > 0:
+                    ax.set_ylabel("")
+                    ax.tick_params(axis='y', labelleft=False)
 
 finally:
+    # Restore the original tight_layout function
     plt.tight_layout = original_tight_layout
 
-# Finalize and Save
-plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
-output_path = "/Users/joshgoldman/Documents/Courses/CHE1147/CHE1147_Final_Project/reports/figures/shap_summary_plots.png"
+# --- Final saving: `bbox_inches='tight'` handles the layout automatically ---
+output_path = "/Users/joshgoldman/Documents/Courses/CHE1147/CHE1147_Final_Project/reports/figures/shap_summary_plots_compact_3x2.png"
 plt.savefig(output_path, dpi=300, bbox_inches='tight')
 plt.close()
-print("Done.")
 
+print("Done. Generated compact 3x2 plot with side-by-side subplots.")
