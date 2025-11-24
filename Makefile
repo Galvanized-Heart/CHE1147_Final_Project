@@ -64,7 +64,7 @@ create_environment:
 
 ## Run the entire pipeline: data -> features -> train -> evaluate
 .PHONY: all
-all: $(PYTHON_INTERPRETER) src/main.py
+all: requirements data features experiments
 
 ## Process raw data to create cleaned interim data
 .PHONY: data
