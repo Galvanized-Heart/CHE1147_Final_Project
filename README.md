@@ -1,4 +1,4 @@
-# Utilizing the EnzyExtract Database and Environmental Conditions to Predict kcat and KM Values
+# Utilizing the EnzyExtract Database and Environmental Conditions to Predict $k_{cat}$ and $K_M$ Values
 
 **CHE1147 Final Project - Group 1:** Josh Goldman, Abiali Badani, Maxim Kirby
 
@@ -9,7 +9,9 @@
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
 </a>
 
-This repository contains the source code, datasets, and analysis for our study on predicting enzyme kinetic parameters ($k_{cat}$ and $K_M$) using the **EnzyExtract** database. By leveraging Machine Learning (XGBoost, MLP, and Linear Regression) and advanced feature engineering (ESM2 embeddings, Morgan Fingerprints), we aim to improve prediction accuracy by incorporating often-overlooked environmental data such as pH and temperature.
+This repository contains the source code, datasets, and analysis for our study on predicting enzyme kinetic parameters ($k_{cat}$ and $K_M$) using the EnzyExtract database. By leveraging Machine Learning (XGBoost, MLP, and Linear Regression) and advanced feature engineering (ESM2 embeddings, Morgan Fingerprints), we aim to improve prediction accuracy by incorporating often-overlooked environmental data such as pH and temperature.
+
+
 
 ## Table of Contents
 - [Project Overview](#project-overview)
@@ -20,9 +22,11 @@ This repository contains the source code, datasets, and analysis for our study o
 - [Methodology](#methodology)
 - [Acknowledgements](#acknowledgements)
 
+
+
 ## Project Overview
 
-Model-guided engineering of enzymatic pathways is restricted by the scarcity of kinetic data. While the recent **EnzyExtract database** provides significantly more data points than traditional databases like BRENDA, it has yet to be fully utilized for predictive modeling.
+Model-guided engineering of enzymatic pathways is restricted by the scarcity of kinetic data. While the recent EnzyExtract database provides significantly more data points than traditional databases like BRENDA, it has yet to be fully utilized for predictive modeling.
 
 This project develops a supervised ML pipeline to:
 1.  **Parse and Clean** the EnzyExtract database.
@@ -61,6 +65,7 @@ This project develops a supervised ML pipeline to:
 ```
 
 
+
 ## Installation & Setup
 We use uv for fast, reliable, and cross-platform dependency management.
 
@@ -69,7 +74,6 @@ We use uv for fast, reliable, and cross-platform dependency management.
 git clone https://github.com/Galvanized-Heart/CHE1147_Final_Project.git
 cd CHE1147_Final_Project
 ```
-
 
 ### 2. Install uv (if not installed)
 ```bash
@@ -84,18 +88,22 @@ source ~/.bashrc
 make setup
 ```
 
+
+
 ## Usage and Reproducibility
 To run the entire pipeline for data parsing, feature engineering, training and results generation run:
 ```bash
 make all
 ```
 
+
+
 ## Methodology
 
 ### Data Source
 We utilized the EnzyExtract database, containing ~40,000 usable data points after cleaning. 
 - **Inputs:** protein sequences, substrate SMILES, temperature, and pH. 
-- **Targets:** kcat and KM.
+- **Targets:** $k_{cat}$ and $K_M$.
 
 ### Feature Engineering
 - **Basic Features:** MW, logP, TPSA, H-bond donors/acceptors (RDKit), MW, sequence length, Instability Index, pI (BioPython).
@@ -105,6 +113,8 @@ We utilized the EnzyExtract database, containing ~40,000 usable data points afte
 - **Baseline:** `LinearRegressor` (sklearn).
 - **Neural Network:** `MLPRegressor` (sklearn) optimized via `BayesSearchCV` (sklearn).
 - **XGBoost:** `XGBRegressor` (xgboost) optimized via `BayesSearchCV` (sklearn).
+
+
 
 ---
 ## Acknowledgements
