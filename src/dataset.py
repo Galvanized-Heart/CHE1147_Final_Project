@@ -95,3 +95,6 @@ def download_and_clean_data() -> None:
     logger.info(f"Cleaned data has the following columns: {df.columns.tolist()}")
     logger.info(f"Cleaned data has {df.shape[0]} rows")
 
+if __name__ == "__main__":
+    download_and_clean_data()
+

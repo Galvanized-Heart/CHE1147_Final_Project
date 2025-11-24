@@ -64,7 +64,7 @@ create_environment:
 
 ## Run the entire pipeline: data -> features -> train -> evaluate
 .PHONY: all
-all: requirements data features train evaluate
+all: $(PYTHON_INTERPRETER) src/main.py
 
 ## Process raw data to create cleaned interim data
 .PHONY: data
@@ -76,20 +76,10 @@ data:
 features:
 	$(PYTHON_INTERPRETER) src/features.py
 
-## Train models on processed features
-.PHONY: train
+## Train models on processed features and create visualizations
+.PHONY: experiments
 train:
-	$(PYTHON_INTERPRETER) src/modeling/train.py
-
-## Evaluate models on the test set
-.PHONY: evaluate
-evaluate:
-	$(PYTHON_INTERPRETER) src/modeling/predict.py
-
-## Generate plots after evaluation
-.PHONY: plots
-plots:
-	$(PYTHON_INTERPRETER) src/plots.py
+	$(PYTHON_INTERPRETER) src/experiments.py
 
 
 #################################################################################

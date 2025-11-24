@@ -285,4 +285,7 @@ def generate_shap_experiment_data():
     final_df.to_csv(save_path, index=False)
     logger.success(f"Saved SHAP data to {save_path}")
 
-
+if __name__ == "__main__":
+    generate_metrics_experiment_data()
+    generate_parity_experiment_data()
+    generate_shap_experiment_data()
