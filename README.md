@@ -1,6 +1,6 @@
 # Utilizing the EnzyExtract Database and Environmental Conditions to Predict kcat and KM Values
 
-**CHE1147 Final Project - Group 1**
+**CHE1147 Final Project - Group 1:** Josh Goldman, Abiali Badani, Maxim Kirby
 
 ![Python](https://img.shields.io/badge/python-3.10-blue)
 ![Dependency Manager](https://img.shields.io/badge/dependency-uv-purple)
