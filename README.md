@@ -1,4 +1,5 @@
-# Predicting Enzyme Kinetics ($k_{cat}$ and $K_M$) from Structural and Environmental Data
+# Utilizing the EnzyExtract Database and Environmental Conditions to Predict kcat and KM Values
+
 **CHE1147 Final Project - Group 1**
 
 ![Python](https://img.shields.io/badge/python-3.10-blue)
